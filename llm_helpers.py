@@ -6,7 +6,7 @@ rest of the app never has to touch LangChain objects directly.
 """
 
 from langchain_openai import ChatOpenAI
-from langchain.schema import HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 
 from config import LLM_MODEL, LLM_TEMPERATURE, PAGE_CONFIG
 
