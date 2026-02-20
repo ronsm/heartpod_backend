@@ -11,7 +11,8 @@ langtest/
 ├── state.py          ← ConversationState TypedDict
 ├── device.py         ← device_queue and simulate_reading() (swap for real hardware)
 ├── llm_helpers.py    ← LLMHelper class – all LLM prompts live here
-└── robot.py          ← HealthRobotGraph – nodes, graph wiring, run loop
+├── robot.py          ← HealthRobotGraph – nodes, graph wiring, run loop
+└── print_utility.py  ← PrintUtility – thermal receipt printer (Epson USB)
 ```
 
 ## State Flow
@@ -51,7 +52,28 @@ langtest/
 ## Running
 
 ```bash
+python main.py [OPTIONS]
+```
+
+### Command-line flags
+
+| Flag | Description |
+|------|-------------|
+| `--dummy` | Use simulated sensor data instead of real BLE hardware |
+| `--no-printer` | Disable the thermal receipt printer (useful when running without the hardware connected) |
+| `--port PORT` | Port for the HTTP server (default: 5000) |
+
+**Examples:**
+
+```bash
+# Full production run (real sensors + printer)
 python main.py
+
+# Development / demo run (simulated sensors, no printer)
+python main.py --dummy --no-printer
+
+# Real sensors, no printer, custom port
+python main.py --no-printer --port 8080
 ```
 
 ## Key Design Decisions

@@ -34,6 +34,11 @@ def main():
         default=DEFAULT_PORT,
         help=f"Port for the HTTP server (default: {DEFAULT_PORT})",
     )
+    parser.add_argument(
+        "--no-printer",
+        action="store_true",
+        help="Disable the thermal receipt printer (useful when running without hardware)",
+    )
     args = parser.parse_args()
 
     if not os.getenv("OPENAI_API_KEY"):
@@ -51,7 +56,7 @@ def main():
     input_thread.start()
 
     sensor_mode = "dummy" if args.dummy else "real"
-    robot = HealthRobotGraph(sensor_mode=sensor_mode)
+    robot = HealthRobotGraph(sensor_mode=sensor_mode, use_printer=not args.no_printer)
     try:
         robot.run()
     except (KeyboardInterrupt, SystemExit):

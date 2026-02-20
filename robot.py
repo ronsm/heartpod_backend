@@ -19,10 +19,18 @@ from http_server import action_queue, update_state
 
 class HealthRobotGraph:
 
-    def __init__(self, sensor_mode: str = "real"):
+    def __init__(self, sensor_mode: str = "real", use_printer: bool = True):
         self.sensor_mode = sensor_mode
         self.llm = LLMHelper()
         self.graph = self._build_graph()
+        self.printer = None
+        if use_printer:
+            try:
+                from print_utility import PrintUtility
+                self.printer = PrintUtility()
+                print("  [Printer: ready]")
+            except Exception as e:
+                print(f"  [Printer: unavailable — {e}]")
 
     # ------------------------------------------------------------------
     # Node functions
@@ -77,7 +85,15 @@ class HealthRobotGraph:
         elif stage == "scale_done":
             return {"value": str(r.get("scale", "?")), "unit": "kg"}
         elif stage == "recap":
-            return {}
+            a = state["answers"]
+            return {
+                "q1": a.get("q1", "not answered"),
+                "q2": a.get("q2", "not answered"),
+                "q3": a.get("q3", "not answered"),
+                "oximeter": f"{r.get('oximeter_hr', '?')} bpm / {r.get('oximeter_spo2', '?')}%",
+                "bp": f"{r.get('bp', '?')} mmHg",
+                "weight": f"{r.get('scale', '?')} kg",
+            }
         elif stage == "sorry":
             return {"message": state["robot_response"]}
         else:
@@ -312,6 +328,32 @@ class HealthRobotGraph:
                 self._print_robot("No problem. Returning to start.")
                 return False
 
+    def _print_receipt(self, state: ConversationState):
+        """Print header, results, and footer to the thermal printer if available."""
+        if self.printer is None:
+            return
+        r = state["readings"]
+        bp = r.get("bp", "?/?")
+        try:
+            systolic, diastolic = str(bp).split("/")
+            systolic, diastolic = int(systolic.strip()), int(diastolic.strip())
+        except (ValueError, AttributeError):
+            systolic, diastolic = "?", "?"
+        results = {
+            "spo2": r.get("oximeter_spo2", "?"),
+            "heart_rate": r.get("oximeter_hr", "?"),
+            "weight": r.get("scale", "?"),
+            "height": "\u2014",  # not captured in this workflow
+            "systolic": systolic,
+            "diastolic": diastolic,
+        }
+        try:
+            self.printer.print_header()
+            self.printer.print_results(results)
+            self.printer.print_footer()
+        except Exception as e:
+            print(f"  [Printer error: {e}]")
+
     # ------------------------------------------------------------------
     # Main run loop
     # ------------------------------------------------------------------
@@ -387,4 +429,5 @@ class HealthRobotGraph:
             # ── recap ─────────────────────────────────────────────────
             state = self.recap_node(state)
             self._print_robot(state["robot_response"], state["page_id"])
+            self._print_receipt(state)
             self._ask_user()  # any input returns to idle

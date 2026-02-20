@@ -2,3 +2,5 @@ langchain>=0.3.27
 langchain-openai>=0.3.35
 langgraph>=0.6.11
 bleak>=0.22.0
+python-escpos>=3.0
+pyusb>=1.0.0
