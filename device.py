@@ -34,7 +34,7 @@ def _generate_value(device: str):
 def simulate_reading(device: str, delay: float = 2.0):
     """
     Push a fake reading onto device_queue after `delay` seconds.
-    Remove this call from robot.py when real hardware is connected.
+    Only used in dummy mode.
     """
 
     def _push():
@@ -42,3 +42,42 @@ def simulate_reading(device: str, delay: float = 2.0):
         device_queue.put({"device": device, "value": value})
 
     threading.Timer(delay, _push).start()
+
+
+def get_real_reading(device: str):
+    """
+    Call the real BLE sensor for `device` and return a dict in the same
+    format that simulate_reading() pushes onto device_queue, or None on
+    failure.
+
+    Return formats:
+        oximeter → {"device": "oximeter", "value": {"hr": int, "spo2": int}}
+        bp       → {"device": "bp",       "value": "systolic/diastolic"}
+        scale    → {"device": "scale",    "value": float}
+    """
+    import asyncio
+
+    if device == "oximeter":
+        from sensors import sensor_oximeter as mod
+        raw = asyncio.run(mod.get_reading())
+        if raw is None:
+            return None
+        return {"device": "oximeter", "value": {"hr": raw["pulse"], "spo2": raw["spo2"]}}
+
+    elif device == "bp":
+        from sensors import sensor_blood_pressure as mod
+        raw = asyncio.run(mod.get_reading())
+        if raw is None:
+            return None
+        systolic = int(round(raw["systolic"]))
+        diastolic = int(round(raw["diastolic"]))
+        return {"device": "bp", "value": f"{systolic}/{diastolic}"}
+
+    elif device == "scale":
+        from sensors import sensor_scales as mod
+        raw = asyncio.run(mod.get_reading())
+        if raw is None:
+            return None
+        return {"device": "scale", "value": raw}
+
+    return None

@@ -11,13 +11,14 @@ from langgraph.graph import StateGraph, END
 
 from config import PAGE_CONFIG, MAX_RETRIES, READING_TIMEOUT
 from state import ConversationState
-from device import device_queue, simulate_reading
+from device import device_queue, simulate_reading, get_real_reading
 from llm_helpers import LLMHelper
 
 
 class HealthRobotGraph:
 
-    def __init__(self):
+    def __init__(self, sensor_mode: str = "real"):
+        self.sensor_mode = sensor_mode
         self.llm = LLMHelper()
         self.graph = self._build_graph()
 
@@ -198,29 +199,36 @@ class HealthRobotGraph:
 
     def _do_device_reading(self, device: str, state: ConversationState) -> bool:
         """
-        Wait up to READING_TIMEOUT seconds for a reading from `device`.
-        Stores the result in state["readings"] and returns True on success.
-        Returns False on timeout.
+        Obtain a reading from `device` and store it in state["readings"].
+        Returns True on success, False on failure/timeout.
 
-        NOTE: The simulate_reading() call below is for demo/testing only.
-        Remove it and connect your real hardware when deploying.
+        In real mode: calls the BLE sensor directly via get_real_reading().
+        In dummy mode: fires a simulated reading onto device_queue.
         """
-        print(f"  [Waiting for {device} data (timeout={READING_TIMEOUT}s)...]")
-        simulate_reading(device, delay=2.0)  # ← remove when using real hardware
-        try:
-            data = device_queue.get(timeout=READING_TIMEOUT)
-            print(f"  [Data received: {data}]")
-            if device == "oximeter":
-                state["readings"]["oximeter_hr"] = data["value"]["hr"]
-                state["readings"]["oximeter_spo2"] = data["value"]["spo2"]
-            elif device == "bp":
-                state["readings"]["bp"] = data["value"]
-            elif device == "scale":
-                state["readings"]["scale"] = data["value"]
-            return True
-        except queue_module.Empty:
-            print(f"  [Timeout: no data received from {device}]")
-            return False
+        if self.sensor_mode == "real":
+            print(f"  [Waiting for {device} data (real hardware)...]")
+            data = get_real_reading(device)
+            if data is None:
+                print(f"  [No reading received from {device}]")
+                return False
+        else:
+            print(f"  [Waiting for {device} data (dummy, timeout={READING_TIMEOUT}s)...]")
+            simulate_reading(device, delay=2.0)
+            try:
+                data = device_queue.get(timeout=READING_TIMEOUT)
+            except queue_module.Empty:
+                print(f"  [Timeout: no data received from {device}]")
+                return False
+
+        print(f"  [Data received: {data}]")
+        if device == "oximeter":
+            state["readings"]["oximeter_hr"] = data["value"]["hr"]
+            state["readings"]["oximeter_spo2"] = data["value"]["spo2"]
+        elif device == "bp":
+            state["readings"]["bp"] = data["value"]
+        elif device == "scale":
+            state["readings"]["scale"] = data["value"]
+        return True
 
     def _reading_loop(
         self, device: str, intro_stage: str, done_stage: str, state: ConversationState
