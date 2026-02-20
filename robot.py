@@ -5,6 +5,7 @@ Nodes map 1-to-1 with the states in the state machine diagram.
 The run() method drives the conversation; all routing logic lives here.
 """
 
+import json
 import queue as queue_module
 
 from langgraph.graph import StateGraph, END
@@ -13,6 +14,7 @@ from config import PAGE_CONFIG, MAX_RETRIES, READING_TIMEOUT
 from state import ConversationState
 from device import device_queue, simulate_reading, get_real_reading
 from llm_helpers import LLMHelper
+from http_server import action_queue, update_state
 
 
 class HealthRobotGraph:
@@ -35,7 +37,51 @@ class HealthRobotGraph:
         state["current_stage"] = stage
         state["page_id"] = PAGE_CONFIG[stage]["page_id"]
         state["robot_response"] = message
+        update_state(int(state["page_id"]), self._build_data(state))
         return state
+
+    def _build_data(self, state: ConversationState) -> dict:
+        """Build the data payload for the current stage to send via GET /state."""
+        stage = state["current_stage"]
+        r = state.get("readings", {})
+
+        if stage == "idle":
+            return {}
+        elif stage == "welcome":
+            return {"message": state["robot_response"]}
+        elif stage in ("q1", "q2", "q3"):
+            cfg = PAGE_CONFIG[stage]
+            question = cfg["message"].split("\n")[0]
+            return {"question": question, "options": json.dumps(cfg["options"])}
+        elif stage == "measure_intro":
+            return {"message": state["robot_response"]}
+        elif stage == "oximeter_intro":
+            return {"device": "oximeter"}
+        elif stage == "oximeter_reading":
+            return {"message": state["robot_response"]}
+        elif stage == "oximeter_done":
+            return {
+                "value": f"{r.get('oximeter_hr', '?')} bpm / {r.get('oximeter_spo2', '?')}%",
+                "unit": "HR / SpO2",
+            }
+        elif stage == "bp_intro":
+            return {"device": "blood pressure monitor"}
+        elif stage == "bp_reading":
+            return {"message": state["robot_response"]}
+        elif stage == "bp_done":
+            return {"value": r.get("bp", "?"), "unit": "mmHg"}
+        elif stage == "scale_intro":
+            return {"device": "scale"}
+        elif stage == "scale_reading":
+            return {"message": state["robot_response"]}
+        elif stage == "scale_done":
+            return {"value": str(r.get("scale", "?")), "unit": "kg"}
+        elif stage == "recap":
+            return {}
+        elif stage == "sorry":
+            return {"message": state["robot_response"]}
+        else:
+            return {}
 
     def _simple_node(self, stage: str):
         """Factory: returns a node function that just displays PAGE_CONFIG text."""
@@ -180,13 +226,8 @@ class HealthRobotGraph:
         print(f"\n{prefix}Robot: {msg}\n")
 
     def _ask_user(self) -> str:
-        while True:
-            user_input = input("You: ").strip()
-            if user_input.lower() in ("quit", "exit"):
-                print("\nRobot: Goodbye! Come back anytime.")
-                raise SystemExit(0)
-            if user_input:
-                return user_input
+        """Block until the Android app (or terminal) posts an action."""
+        return action_queue.get()
 
     def _wait_for_proceed(self, action_context: str):
         """Block until the user confirms they are ready. Handles diversions via LLM."""

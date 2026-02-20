@@ -1,7 +1,24 @@
 import argparse
 import os
+import threading
 
 from robot import HealthRobotGraph
+from http_server import action_queue, start_http_server, DEFAULT_PORT
+
+
+def _terminal_input_loop():
+    """Forward terminal keystrokes into the same action queue as HTTP actions."""
+    while True:
+        try:
+            line = input("You: ").strip()
+        except EOFError:
+            break
+        if line.lower() in ("quit", "exit"):
+            print("\nRobot: Goodbye! Come back anytime.")
+            os.kill(os.getpid(), 2)  # SIGINT → KeyboardInterrupt in main thread
+            break
+        if line:
+            action_queue.put(line)
 
 
 def main():
@@ -11,6 +28,12 @@ def main():
         action="store_true",
         help="Use simulated sensor data instead of real BLE hardware",
     )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=DEFAULT_PORT,
+        help=f"Port for the HTTP server (default: {DEFAULT_PORT})",
+    )
     args = parser.parse_args()
 
     if not os.getenv("OPENAI_API_KEY"):
@@ -18,9 +41,24 @@ def main():
         print("Set it with: export OPENAI_API_KEY='your-key-here'")
         return
 
+    server = start_http_server(args.port)
+    print(f"HTTP server listening on port {args.port}")
+    print("  GET  /state  → current page")
+    print("  POST /action → button press from app")
+    print("Terminal input also accepted. Type 'quit' or 'exit' to stop.\n")
+
+    input_thread = threading.Thread(target=_terminal_input_loop, daemon=True)
+    input_thread.start()
+
     sensor_mode = "dummy" if args.dummy else "real"
     robot = HealthRobotGraph(sensor_mode=sensor_mode)
-    robot.run()
+    try:
+        robot.run()
+    except (KeyboardInterrupt, SystemExit):
+        pass
+    finally:
+        print("\nShutting down.")
+        server.shutdown()
 
 
 if __name__ == "__main__":
