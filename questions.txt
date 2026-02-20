@@ -1,0 +1,18 @@
+Q1. How frequently do you smoke?
+- I previously smoked but no longer do
+- I do not and have never smoked
+- Occasionally (e.g. weekly or monthly)
+- A few times a day
+- Many times per day
+
+Q2. How frequently do you exercise?
+- Never
+- Once per week
+- 2-3 times per week
+- 4+ times per week
+
+Q3. How many units of alcohol do you consume per week?
+- I don't consume alcohol 
+- 2-3 units per week
+- 4-6 units per week
+- 7+ units per week
