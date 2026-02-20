@@ -1,128 +1,71 @@
-# LangChain Stateful Conversation POCs
+# HeartPod
 
-Two proof-of-concept implementations demonstrating stateful human-robot conversations using LangChain. The scenario: a health monitoring robot guides users through four sensor readings (heart rate, weight, blood pressure, temperature) using natural language interaction.
+A LangGraph-based health screening application for the **Temi** robot. Temi guides a patient through a lifestyle questionnaire and three device readings (oximeter, blood pressure, scale), then displays a summary of their results.
 
-## POCs Included
+## File Structure
 
-### 1. Simple Python State Machine (`langtest_simple.py`)
-- **Approach**: Manual state tracking using a Python class
-- **Pros**: Easy to understand, minimal dependencies, straightforward control flow
-- **Cons**: More manual state management code
+```
+langtest/
+├── main.py           ← Entry point: python main.py
+├── config.py         ← All static strings and constants (edit messages here)
+├── state.py          ← ConversationState TypedDict
+├── device.py         ← device_queue and simulate_reading() (swap for real hardware)
+├── llm_helpers.py    ← LLMHelper class – all LLM prompts live here
+└── robot.py          ← HealthRobotGraph – nodes, graph wiring, run loop
+```
 
-### 2. LangGraph (`langtest_langgraph.py`)
-- **Approach**: Graph-based state management using LangGraph
-- **Pros**: More sophisticated, follows modern LangChain patterns, easier to extend
-- **Cons**: Additional dependency, slightly more complex setup
+## State Flow
 
-## Features
-
-Both POCs include:
-- **LLM-based intent detection**: The system uses GPT to understand when users want to proceed (not keyword-based)
-- **Simulated sensor readings**: Generates realistic random health data
-- **Off-topic handling**: Users can ask questions without disrupting the flow
-- **Natural conversation**: No rigid command structure required
+| State | Page | Description |
+|-------|------|-------------|
+| idle | 01 | Welcome – yes/no to begin |
+| welcome | 02 | Consent and comfort instructions |
+| q1 | 03 | Lifestyle question: smoking frequency |
+| q2 | 04 | Lifestyle question: exercise frequency |
+| q3 | 05 | Lifestyle question: alcohol units/week |
+| measure_intro | 06 | Overview of the three measurements |
+| oximeter_intro | 07 | Oximeter placement instructions |
+| oximeter_reading | 08 | Reads heart rate and SpO2 from device |
+| oximeter_done | 09 | Shows HR + SpO2 result |
+| bp_intro | 10 | Blood pressure cuff instructions |
+| bp_reading | 11 | Reads blood pressure from device |
+| bp_done | 12 | Shows BP result |
+| scale_intro | 13 | Scale instructions |
+| scale_reading | 14 | Reads weight from device |
+| scale_done | 15 | Shows weight result |
+| recap | 16 | Full summary of answers and readings |
+| sorry | 17 | Device timeout – offers retry |
 
 ## Setup
 
-1. **Install dependencies**:
+1. **Install dependencies:**
    ```bash
    pip install -r requirements.txt
    ```
 
-2. **Set your OpenAI API key** (if not already in environment):
+2. **Set your OpenAI API key:**
    ```bash
    export OPENAI_API_KEY='your-api-key-here'
    ```
 
-## Usage
+## Running
 
-### Run the Simple State Machine POC:
 ```bash
-python langtest_simple.py
+python main.py
 ```
 
-### Run the LangGraph POC:
-```bash
-python langtest_langgraph.py
-```
+## Key Design Decisions
 
-## Example Interaction
+- **All dialogue strings live in `config.py`** (`PAGE_CONFIG`). Edit messages there – do not hardcode strings elsewhere.
+- **Questionnaire questions (Q1/Q2/Q3)** re-prompt inline on invalid input; they never trigger the sorry page. Any question can be skipped (recorded as `"skipped"`).
+- **The sorry page is triggered by device timeouts only**, not by user confusion or invalid input. Off-topic questions at any state are handled gracefully by `LLMHelper.handle_general_question()`, which answers then re-prompts within the same state.
+- **Device readings** block on a queue (`device_queue.get(timeout=30)`). For demo purposes, `simulate_reading()` in `device.py` auto-fires a fake reading. Remove that call in `robot.py` when connecting real hardware.
 
-```
-Robot: Hello! I'm here to help you take some health readings today.
-       We'll measure your heart rate, weight, blood pressure, and
-       temperature. Are you ready to begin?
+## Configuration (`config.py`)
 
-You: What will this take?
-
-Robot: This will only take a few minutes! We'll go through four quick
-       sensor readings. Are you ready to start with your heart rate?
-
-You: yes let's do it
-
-Robot: Great! Let's start with your heart rate. Please place your
-       finger on the sensor.
-
-  [Sensor is reading...]
-  [Reading complete: 72]
-
-Robot: Excellent! Next, let's measure your weight. Please step onto
-       the scale.
-
-You: ok
-
-  [Sensor is reading...]
-  [Reading complete: 68.4]
-
-... (continues through all sensors)
-
-Robot: All done! Here are your readings:
-  - Heart Rate: 72
-  - Weight: 68.4
-  - Blood Pressure: 125/82
-  - Temperature: 36.8
-
-Thank you for completing your health check!
-```
-
-## How It Works
-
-### Intent Detection
-Both POCs use the LLM to analyze user input and determine if they're ready to proceed. The system recognizes various ways of expressing readiness:
-- Direct: "yes", "ok", "ready"
-- Casual: "let's go", "sure", "sounds good"
-- Implied: "I'm ready", "let's do it"
-
-### State Flow
-1. **Greeting** → Introduce the process
-2. **Heart Rate** → Take first reading
-3. **Weight** → Take second reading
-4. **Blood Pressure** → Take third reading
-5. **Temperature** → Take final reading
-6. **Complete** → Show all results
-
-### Sensor Simulation
-Realistic random values:
-- Heart rate: 60-100 bpm
-- Weight: 50-100 kg
-- Blood pressure: 110-140 / 70-90 mmHg
-- Temperature: 36.5-37.5°C
-
-## Architecture Comparison
-
-| Feature | Simple State Machine | LangGraph |
-|---------|---------------------|-----------|
-| State Management | Manual class variable | Graph nodes & edges |
-| Extensibility | Requires code changes | Add nodes & edges |
-| Code Complexity | Lower | Moderate |
-| LangChain Integration | Basic | Deep |
-| Best For | Quick POCs, learning | Production, complex flows |
-
-## Exiting
-Type `quit` or `exit` at any prompt to end the conversation.
-
-## Notes
-- The LLM calls are used for intent detection and handling off-topic questions
-- Sensor readings are simulated with random data (no actual hardware needed)
-- Both POCs use GPT-3.5-turbo for cost efficiency
-- The conversation state persists throughout the session
+| Constant | Default | Description |
+|----------|---------|-------------|
+| `READING_TIMEOUT` | 30s | Seconds before a device reading times out |
+| `MAX_RETRIES` | 3 | Consecutive sorry-retries before returning to idle |
+| `LLM_MODEL` | `gpt-3.5-turbo` | OpenAI model used for intent detection |
+| `LLM_TEMPERATURE` | 0.7 | LLM temperature |
