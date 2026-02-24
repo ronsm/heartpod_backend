@@ -1,18 +1,25 @@
-# HeartPod
+# HeartPod Backend
 
 A LangGraph-based health screening application for the **Temi** robot. Temi guides a patient through a lifestyle questionnaire and three device readings (oximeter, blood pressure, scale), then displays a summary of their results.
 
 ## File Structure
 
 ```
-langtest/
+heartpod_backend/
 ├── main.py           ← Entry point: python main.py
 ├── config.py         ← All static strings and constants (edit messages here)
 ├── state.py          ← ConversationState TypedDict
+├── ws_server.py      ← WebSocket server: pushes state to the app, receives actions
+├── tts.py            ← Text-to-speech engine (local or temi mode)
+├── robot.py          ← HealthRobotGraph – nodes, graph wiring, run loop
 ├── device.py         ← device_queue and simulate_reading() (swap for real hardware)
 ├── llm_helpers.py    ← LLMHelper class – all LLM prompts live here
-├── robot.py          ← HealthRobotGraph – nodes, graph wiring, run loop
-└── print_utility.py  ← PrintUtility – thermal receipt printer (Epson USB)
+├── listen.py         ← Speech-to-text subprocess (Whisper + SpeechRecognition)
+├── print_utility.py  ← PrintUtility – thermal receipt printer (Epson USB)
+└── sensors/
+    ├── sensor_oximeter.py        ← Heart rate / SpO2 via BLE
+    ├── sensor_blood_pressure.py  ← Blood pressure via BLE
+    └── sensor_scales.py          ← Weight via BLE
 ```
 
 ## State Flow
@@ -60,20 +67,66 @@ python main.py [OPTIONS]
 | Flag | Description |
 |------|-------------|
 | `--dummy` | Use simulated sensor data instead of real BLE hardware |
-| `--no-printer` | Disable the thermal receipt printer (useful when running without the hardware connected) |
-| `--port PORT` | Port for the HTTP server (default: 5000) |
+| `--no-printer` | Disable the thermal receipt printer |
+| `--no-listen` | Disable the speech-to-text listener |
+| `--tts {none,local,temi}` | Text-to-speech mode (default: `none`) |
+| `--port PORT` | Port for the WebSocket server (default: 8000) |
 
 **Examples:**
 
 ```bash
-# Full production run (real sensors + printer)
-python main.py
+# Full production run (real sensors + printer, Temi TTS)
+python main.py --tts temi
 
-# Development / demo run (simulated sensors, no printer)
-python main.py --dummy --no-printer
+# Development / demo run (simulated sensors, local TTS via speakers)
+python main.py --dummy --no-printer --no-listen --tts local
 
-# Real sensors, no printer, custom port
+# Real sensors, no printer, custom port, silent
 python main.py --no-printer --port 8080
+```
+
+## Text-to-Speech
+
+The `--tts` flag selects the TTS mode:
+
+| Mode | Description |
+|------|-------------|
+| `none` | Silent – no speech output (default) |
+| `local` | Speaks through the backend machine's audio output (macOS: built-in `say`; Linux: `espeak-ng` or `espeak`) |
+| `temi` | Sends `{"type": "tts", "text": "..."}` WebSocket messages to the Android app for the Temi robot to speak |
+
+The text spoken is exactly what the robot prints to the terminal at each step of the conversation. Speech runs in a background thread and is interrupted immediately when the user acts or a new utterance starts.
+
+**Linux note:** `local` mode requires `espeak-ng` or `espeak` as a system package:
+```bash
+sudo apt install espeak-ng     # Debian/Ubuntu
+sudo dnf install espeak-ng     # Fedora/RHEL
+```
+
+## Communication Protocol
+
+The backend runs a WebSocket server (default port 8000). The Android app connects to `ws://<host>:8000`.
+
+**Backend → app** (state push, sent on every page transition and on connect):
+```json
+{"type": "state", "page_id": 1, "data": {"message": "...", ...}}
+```
+
+**App → backend** (button/action events):
+```json
+{"type": "action", "action": "start", "data": {}}
+```
+
+## Speech-to-Text (`listen.py`)
+
+`listen.py` runs as a subprocess and connects to the same WebSocket server, sending recognised speech as `action=answer` messages. It can also be run standalone for microphone testing:
+
+```bash
+# List available microphones
+python listen.py --list-microphones
+
+# Use a specific microphone with a fixed energy threshold
+python listen.py --microphone 2 --energy-threshold 300
 ```
 
 ## Key Design Decisions
@@ -89,5 +142,5 @@ python main.py --no-printer --port 8080
 |----------|---------|-------------|
 | `READING_TIMEOUT` | 30s | Seconds before a device reading times out |
 | `MAX_RETRIES` | 3 | Consecutive sorry-retries before returning to idle |
-| `LLM_MODEL` | `gpt-3.5-turbo` | OpenAI model used for intent detection |
+| `LLM_MODEL` | `gpt-4o-mini` | OpenAI model used for intent detection |
 | `LLM_TEMPERATURE` | 0.7 | LLM temperature |
