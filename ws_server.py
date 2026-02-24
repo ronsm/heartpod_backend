@@ -16,6 +16,7 @@ import asyncio
 import json
 import queue
 import threading
+from typing import Optional, Set
 
 import websockets
 from websockets.server import WebSocketServerProtocol
@@ -30,10 +31,10 @@ _ws_state: dict = {"page_id": 1, "data": {}}
 action_queue: queue.Queue = queue.Queue()
 
 # All currently connected WebSocket clients (accessed only from the event loop).
-_clients: set[WebSocketServerProtocol] = set()
+_clients: Set[WebSocketServerProtocol] = set()
 
 # The asyncio event loop running the WebSocket server (set in start_ws_server).
-_loop: asyncio.AbstractEventLoop | None = None
+_loop: Optional[asyncio.AbstractEventLoop] = None
 
 # Maps UI action keywords to natural-language phrases the LLM understands.
 # Questionnaire answers are passed through as-is (already natural language).
