@@ -97,6 +97,12 @@ The `--tts` flag selects the TTS mode:
 
 The text spoken is exactly what the robot prints to the terminal at each step of the conversation.
 
+**Linux note:** `local` mode requires `espeak` as a system package — `pip install pyttsx3` alone is not sufficient:
+```bash
+sudo apt install espeak        # Debian/Ubuntu
+sudo dnf install espeak        # Fedora/RHEL
+```
+
 ## Communication Protocol
 
 The backend runs a WebSocket server (default port 8000). The Android app connects to `ws://<host>:8000`.
