@@ -1,5 +1,7 @@
 import argparse
 import os
+import subprocess
+import sys
 import threading
 
 from robot import HealthRobotGraph
@@ -39,6 +41,11 @@ def main():
         action="store_true",
         help="Disable the thermal receipt printer (useful when running without hardware)",
     )
+    parser.add_argument(
+        "--no-listen",
+        action="store_true",
+        help="Disable the speech-to-text listener (useful when running without a microphone)",
+    )
     args = parser.parse_args()
 
     if not os.getenv("OPENAI_API_KEY"):
@@ -52,6 +59,14 @@ def main():
     print("  POST /action → button press from app")
     print("Terminal input also accepted. Type 'quit' or 'exit' to stop.\n")
 
+    listen_proc = None
+    if not args.no_listen:
+        listen_script = os.path.join(os.path.dirname(__file__), "listen.py")
+        listen_proc = subprocess.Popen(
+            [sys.executable, listen_script, "--port", str(args.port)],
+        )
+        print(f"Speech listener started (PID {listen_proc.pid})\n")
+
     input_thread = threading.Thread(target=_terminal_input_loop, daemon=True)
     input_thread.start()
 
@@ -63,6 +78,8 @@ def main():
         pass
     finally:
         print("\nShutting down.")
+        if listen_proc is not None:
+            listen_proc.terminate()
         server.shutdown()
 
 

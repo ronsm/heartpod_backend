@@ -245,14 +245,14 @@ class HealthRobotGraph:
         """Block until the Android app (or terminal) posts an action."""
         return action_queue.get()
 
-    def _wait_for_proceed(self, action_context: str):
+    def _wait_for_proceed(self, action_context: str, robot_message: str = ""):
         """Block until the user confirms they are ready. Handles diversions via LLM."""
         while True:
             user_input = self._ask_user()
-            if self.llm.should_proceed(user_input, action_context):
+            should_go, message = self.llm.evaluate_proceed(user_input, action_context, robot_message)
+            if should_go:
                 return
-            response = self.llm.handle_general_question(user_input, action_context)
-            self._print_robot(response)
+            self._print_robot(message)
 
     def _do_device_reading(self, device: str, state: ConversationState) -> bool:
         """
@@ -300,7 +300,7 @@ class HealthRobotGraph:
 
         state = intro_node(state)
         self._print_robot(state["robot_response"], state["page_id"])
-        self._wait_for_proceed(PAGE_CONFIG[intro_stage]["action_context"])
+        self._wait_for_proceed(PAGE_CONFIG[intro_stage]["action_context"], state["robot_response"])
 
         while True:
             reading_node = getattr(self, f"{device}_reading_node")
@@ -310,7 +310,7 @@ class HealthRobotGraph:
             if self._do_device_reading(device, state):
                 state = done_node(state)
                 self._print_robot(state["robot_response"], state["page_id"])
-                self._wait_for_proceed(PAGE_CONFIG[done_stage]["action_context"])
+                self._wait_for_proceed(PAGE_CONFIG[done_stage]["action_context"], state["robot_response"])
                 return True
 
             # Device timeout → sorry
@@ -380,12 +380,12 @@ class HealthRobotGraph:
             # ── idle ──────────────────────────────────────────────────
             state = self.idle_node(state)
             self._print_robot(state["robot_response"], state["page_id"])
-            self._wait_for_proceed(PAGE_CONFIG["idle"]["action_context"])
+            self._wait_for_proceed(PAGE_CONFIG["idle"]["action_context"], state["robot_response"])
 
             # ── welcome ───────────────────────────────────────────────
             state = self.welcome_node(state)
             self._print_robot(state["robot_response"], state["page_id"])
-            self._wait_for_proceed(PAGE_CONFIG["welcome"]["action_context"])
+            self._wait_for_proceed(PAGE_CONFIG["welcome"]["action_context"], state["robot_response"])
 
             # ── questionnaire ─────────────────────────────────────────
             for qkey in ("q1", "q2", "q3"):
@@ -394,14 +394,16 @@ class HealthRobotGraph:
                 self._print_robot(state["robot_response"], state["page_id"])
                 while True:
                     user_input = self._ask_user()
-                    if self.llm.user_wants_to_skip(user_input):
+                    intent, value = self.llm.evaluate_questionnaire_input(
+                        user_input, qkey, PAGE_CONFIG[qkey]["message"]
+                    )
+                    if intent == "skip":
                         state["answers"][qkey] = "skipped"
                         print(f"  [Question {qkey} skipped]")
                         break
-                    matched = self.llm.validate_answer(user_input, qkey)
-                    if matched:
-                        state["answers"][qkey] = matched
-                        print(f"  [Recorded {qkey}: {matched}]")
+                    if intent == "answer":
+                        state["answers"][qkey] = value
+                        print(f"  [Recorded {qkey}: {value}]")
                         break
                     opts = "\n".join(
                         f"  {i+1}. {o}"
@@ -414,7 +416,7 @@ class HealthRobotGraph:
             # ── measure intro ─────────────────────────────────────────
             state = self.measure_intro_node(state)
             self._print_robot(state["robot_response"], state["page_id"])
-            self._wait_for_proceed(PAGE_CONFIG["measure_intro"]["action_context"])
+            self._wait_for_proceed(PAGE_CONFIG["measure_intro"]["action_context"], state["robot_response"])
 
             # ── device readings ───────────────────────────────────────
             if not self._reading_loop(
