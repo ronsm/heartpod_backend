@@ -9,7 +9,7 @@ from ws_server import action_queue, start_ws_server, DEFAULT_PORT
 
 
 def _terminal_input_loop():
-    """Forward terminal keystrokes into the same action queue as HTTP actions."""
+    """Forward terminal keystrokes into the same action queue as WebSocket actions."""
     while True:
         try:
             line = input("You: ").strip()

@@ -14,84 +14,7 @@ import sounddevice
 import speech_recognition as sr
 from faster_whisper import WhisperModel
 
-
-def parse_args() -> argparse.Namespace:
-    """Parse the command-line arguments of this program."""
-    parser = argparse.ArgumentParser(
-        description="Speech-to-text interface for the self-screening health station"
-    )
-    parser.add_argument(
-        "-l",
-        "--list-microphones",
-        action="store_true",
-        help="list all available microphones and exit",
-    )
-    parser.add_argument(
-        "-t",
-        "--test-microphone",
-        action="store_true",
-        help="test microphone and exit",
-    )
-    parser.add_argument(
-        "-m",
-        "--microphone",
-        metavar="M",
-        type=int,
-        help=(
-            "use the specified microphone (if unspecified, the default "
-            "microphone is used)"
-        ),
-    )
-    parser.add_argument(
-        "-e",
-        "--energy-threshold",
-        metavar="N",
-        type=int,
-        help=(
-            "initial energy threshold for sounds (between 0 and 4000; "
-            "if unspecified, automatic calibration is performed)"
-        ),
-    )
-    parser.add_argument(
-        "--host",
-        default="localhost",
-        help="hostname of the main.py HTTP server (default: localhost)",
-    )
-    parser.add_argument(
-        "--port",
-        type=int,
-        default=8000,
-        help="port of the main.py HTTP server (default: 8000)",
-    )
-    args = parser.parse_args()
-
-    # Ensure that the specified microphone exists
-    if (
-        args.microphone is not None
-        and not 0 <= args.microphone <= get_microphone_count() - 1
-    ):
-        raise IndexError("Device index out of range")
-
-    # Ensure that the specified energy threshold is valid
-    if args.energy_threshold is not None and not 0 <= args.energy_threshold <= 4000:
-        raise ValueError("Energy threshold out of 0-4000")
-
-    return args
-
-
-def get_microphone_count() -> int:
-    """Return the number of available microphones."""
-    return len(sr.Microphone.list_microphone_names())
-
-
-def list_microphones() -> None:
-    """List all available microphones."""
-    for index, name in enumerate(sr.Microphone.list_microphone_names()):
-        print(f"{index}: {name}")
-
-
-def test_microphone(device_index: Optional[int] = None) -> None:
-    pass
+from ws_server import DEFAULT_PORT
 
 
 def listen(
@@ -219,16 +142,58 @@ def recognize(
 
 def main():
     """Run the speech-to-text interface (this program)."""
-    # Parse command-line arguments
-    args = parse_args()
+    parser = argparse.ArgumentParser(
+        description="Speech-to-text interface for the self-screening health station"
+    )
+    parser.add_argument(
+        "-l",
+        "--list-microphones",
+        action="store_true",
+        help="list all available microphones and exit",
+    )
+    parser.add_argument(
+        "-m",
+        "--microphone",
+        metavar="M",
+        type=int,
+        help=(
+            "use the specified microphone (if unspecified, the default "
+            "microphone is used)"
+        ),
+    )
+    parser.add_argument(
+        "-e",
+        "--energy-threshold",
+        metavar="N",
+        type=int,
+        help=(
+            "initial energy threshold for sounds (between 0 and 4000; "
+            "if unspecified, automatic calibration is performed)"
+        ),
+    )
+    parser.add_argument(
+        "--host",
+        default="localhost",
+        help="hostname of the WebSocket server (default: localhost)",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=DEFAULT_PORT,
+        help=f"port of the WebSocket server (default: {DEFAULT_PORT})",
+    )
+    args = parser.parse_args()
 
     if args.list_microphones:
-        list_microphones()
+        for index, name in enumerate(sr.Microphone.list_microphone_names()):
+            print(f"{index}: {name}")
         return
 
-    if args.test_microphone:
-        test_microphone(args.microphone)
-        return
+    mic_count = len(sr.Microphone.list_microphone_names())
+    if args.microphone is not None and not 0 <= args.microphone <= mic_count - 1:
+        parser.error(f"microphone index out of range (0–{mic_count - 1})")
+    if args.energy_threshold is not None and not 0 <= args.energy_threshold <= 4000:
+        parser.error("energy threshold must be between 0 and 4000")
 
     server_url = f"ws://{args.host}:{args.port}"
     print(f"Sending recognized speech to {server_url}")
