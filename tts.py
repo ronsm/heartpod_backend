@@ -64,10 +64,10 @@ def stop() -> None:
 
 def _speak_local(text: str) -> None:
     """Worker run on a daemon thread for local TTS."""
+    global _current_engine
     import pyttsx3
     engine = pyttsx3.init()
     with _lock:
-        global _current_engine
         _current_engine = engine
     try:
         # Guard against stop() being called between speak() and this point.
@@ -76,5 +76,4 @@ def _speak_local(text: str) -> None:
             engine.runAndWait()
     finally:
         with _lock:
-            global _current_engine
             _current_engine = None
