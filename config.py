@@ -3,7 +3,7 @@
 # ---------------------------------------------------------------------------
 READING_TIMEOUT = 30  # seconds before a device reading times out
 MAX_RETRIES = 3  # max consecutive sorry-retries before returning to idle
-LLM_MODEL = "gpt-3.5-turbo"
+LLM_MODEL = "gpt-4o-mini"
 LLM_TEMPERATURE = 0.7
 
 # ---------------------------------------------------------------------------
