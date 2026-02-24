@@ -92,15 +92,15 @@ The `--tts` flag selects the TTS mode:
 | Mode | Description |
 |------|-------------|
 | `none` | Silent – no speech output (default) |
-| `local` | Speaks through the backend machine's audio output using [pyttsx3](https://pyttsx3.readthedocs.io) (offline, no internet required) |
+| `local` | Speaks through the backend machine's audio output (macOS: built-in `say`; Linux: `espeak-ng` or `espeak`) |
 | `temi` | Sends `{"type": "tts", "text": "..."}` WebSocket messages to the Android app for the Temi robot to speak |
 
-The text spoken is exactly what the robot prints to the terminal at each step of the conversation.
+The text spoken is exactly what the robot prints to the terminal at each step of the conversation. Speech runs in a background thread and is interrupted immediately when the user acts or a new utterance starts.
 
-**Linux note:** `local` mode requires `espeak` as a system package — `pip install pyttsx3` alone is not sufficient:
+**Linux note:** `local` mode requires `espeak-ng` or `espeak` as a system package:
 ```bash
-sudo apt install espeak        # Debian/Ubuntu
-sudo dnf install espeak        # Fedora/RHEL
+sudo apt install espeak-ng     # Debian/Ubuntu
+sudo dnf install espeak-ng     # Fedora/RHEL
 ```
 
 ## Communication Protocol

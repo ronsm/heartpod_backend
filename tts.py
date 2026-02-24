@@ -3,32 +3,45 @@ Text-to-speech engine.
 
 Modes:
   none  – silent (default)
-  local – speak through the local machine's audio output via pyttsx3;
+  local – speak through the local machine's audio output by spawning a
+          subprocess (macOS: say, Linux: espeak-ng / espeak);
           runs in a background thread so the robot loop is never blocked;
-          interrupted automatically when a new utterance starts or when
-          stop() is called (e.g. the moment a user action arrives)
+          the subprocess is terminated immediately when stop() is called
   temi  – send {"type": "tts", "text": "..."} to connected WebSocket clients
           for the Temi robot to handle
 """
 
+import platform
+import shutil
+import subprocess
 import threading
 
 _mode: str = "none"
 _lock = threading.Lock()
-_current_engine = None   # pyttsx3 engine currently running runAndWait()
+_proc: subprocess.Popen = None   # subprocess currently speaking
 _stop_flag = threading.Event()
+
+
+def _tts_command() -> list:
+    """Return [binary, …] for the local TTS command, or [] if unavailable."""
+    if platform.system() == "Darwin":
+        return ["say"]
+    for cmd in ("espeak-ng", "espeak"):
+        if shutil.which(cmd):
+            return [cmd]
+    return []
 
 
 def init(mode: str) -> None:
     """Validate mode and print a startup message. Call once before speak()."""
     global _mode
     if mode == "local":
-        try:
-            import pyttsx3  # noqa: F401 — confirm it is importable
+        cmd = _tts_command()
+        if cmd:
             _mode = "local"
-            print("  [TTS: local (pyttsx3)]")
-        except Exception as e:
-            print(f"  [TTS: local unavailable — {e}]")
+            print(f"  [TTS: local ({cmd[0]})]")
+        else:
+            print("  [TTS: local unavailable — install espeak or espeak-ng]")
             _mode = "none"
     elif mode == "temi":
         _mode = "temi"
@@ -40,8 +53,6 @@ def init(mode: str) -> None:
 def speak(text: str) -> None:
     """Start speaking text, interrupting any speech already in progress."""
     if _mode == "local":
-        # Stop whatever is playing, then clear the flag before starting the
-        # new thread so the thread does not immediately see a stale stop signal.
         stop()
         _stop_flag.clear()
         threading.Thread(target=_speak_local, args=(text,), daemon=True).start()
@@ -51,29 +62,37 @@ def speak(text: str) -> None:
 
 
 def stop() -> None:
-    """Interrupt any speech currently in progress."""
+    """Terminate any speech subprocess currently running."""
+    global _proc
     _stop_flag.set()
     with _lock:
-        engine = _current_engine
-    if engine is not None:
+        proc, _proc = _proc, None
+    if proc is not None:
         try:
-            engine.stop()
+            proc.terminate()
+            proc.wait(timeout=1)
         except Exception:
             pass
 
 
 def _speak_local(text: str) -> None:
-    """Worker run on a daemon thread for local TTS."""
-    global _current_engine
-    import pyttsx3
-    engine = pyttsx3.init()
-    with _lock:
-        _current_engine = engine
+    """Worker run on a daemon thread: spawn the TTS subprocess and wait."""
+    global _proc
+    if _stop_flag.is_set():
+        return
+    cmd = _tts_command() + [text]
     try:
-        # Guard against stop() being called between speak() and this point.
-        if not _stop_flag.is_set():
-            engine.say(text)
-            engine.runAndWait()
+        proc = subprocess.Popen(cmd)
+        with _lock:
+            _proc = proc
+        # Guard: stop() might have fired between the is_set() check above and
+        # setting _proc — terminate immediately in that case.
+        if _stop_flag.is_set():
+            proc.terminate()
+            proc.wait(timeout=1)
+            return
+        proc.wait()
     finally:
         with _lock:
-            _current_engine = None
+            if _proc is proc:
+                _proc = None
