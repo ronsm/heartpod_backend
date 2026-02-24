@@ -14,6 +14,7 @@ from config import PAGE_CONFIG, MAX_RETRIES, READING_TIMEOUT
 from state import ConversationState
 from device import device_queue, simulate_reading, get_real_reading
 from llm_helpers import LLMHelper
+import tts
 from ws_server import action_queue, update_state
 
 
@@ -240,6 +241,7 @@ class HealthRobotGraph:
     def _print_robot(self, msg: str, page_id: str = None):
         prefix = f"[Page {page_id}] " if page_id else ""
         print(f"\n{prefix}Robot: {msg}\n")
+        tts.speak(msg)
 
     def _ask_user(self) -> str:
         """Block until the Android app (or terminal) posts an action."""

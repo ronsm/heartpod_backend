@@ -10,6 +10,7 @@ heartpod_backend/
 ├── config.py         ← All static strings and constants (edit messages here)
 ├── state.py          ← ConversationState TypedDict
 ├── ws_server.py      ← WebSocket server: pushes state to the app, receives actions
+├── tts.py            ← Text-to-speech engine (local or temi mode)
 ├── robot.py          ← HealthRobotGraph – nodes, graph wiring, run loop
 ├── device.py         ← device_queue and simulate_reading() (swap for real hardware)
 ├── llm_helpers.py    ← LLMHelper class – all LLM prompts live here
@@ -68,20 +69,33 @@ python main.py [OPTIONS]
 | `--dummy` | Use simulated sensor data instead of real BLE hardware |
 | `--no-printer` | Disable the thermal receipt printer |
 | `--no-listen` | Disable the speech-to-text listener |
+| `--tts {none,local,temi}` | Text-to-speech mode (default: `none`) |
 | `--port PORT` | Port for the WebSocket server (default: 8000) |
 
 **Examples:**
 
 ```bash
-# Full production run (real sensors + printer)
-python main.py
+# Full production run (real sensors + printer, Temi TTS)
+python main.py --tts temi
 
-# Development / demo run (simulated sensors, no printer, no mic)
-python main.py --dummy --no-printer --no-listen
+# Development / demo run (simulated sensors, local TTS via speakers)
+python main.py --dummy --no-printer --no-listen --tts local
 
-# Real sensors, no printer, custom port
+# Real sensors, no printer, custom port, silent
 python main.py --no-printer --port 8080
 ```
+
+## Text-to-Speech
+
+The `--tts` flag selects the TTS mode:
+
+| Mode | Description |
+|------|-------------|
+| `none` | Silent – no speech output (default) |
+| `local` | Speaks through the backend machine's audio output using [pyttsx3](https://pyttsx3.readthedocs.io) (offline, no internet required) |
+| `temi` | Sends `{"type": "tts", "text": "..."}` WebSocket messages to the Android app for the Temi robot to speak |
+
+The text spoken is exactly what the robot prints to the terminal at each step of the conversation.
 
 ## Communication Protocol
 

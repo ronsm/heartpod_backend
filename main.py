@@ -4,6 +4,7 @@ import subprocess
 import sys
 import threading
 
+import tts
 from robot import HealthRobotGraph
 from ws_server import action_queue, start_ws_server, DEFAULT_PORT
 
@@ -46,6 +47,15 @@ def main():
         action="store_true",
         help="Disable the speech-to-text listener (useful when running without a microphone)",
     )
+    parser.add_argument(
+        "--tts",
+        choices=["none", "local", "temi"],
+        default="none",
+        help=(
+            "Text-to-speech mode: 'none' (silent), 'local' (speak on this machine via pyttsx3), "
+            "'temi' (send to the Android app via WebSocket) (default: none)"
+        ),
+    )
     args = parser.parse_args()
 
     if not os.getenv("OPENAI_API_KEY"):
@@ -53,6 +63,7 @@ def main():
         print("Set it with: export OPENAI_API_KEY='your-key-here'")
         return
 
+    tts.init(args.tts)
     server = start_ws_server(args.port)
     print(f"WebSocket server listening on port {args.port}")
     print(f"  ws://0.0.0.0:{args.port}  – state push and action receive")

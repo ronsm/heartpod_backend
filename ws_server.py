@@ -101,6 +101,13 @@ def update_state(page_id: int, data: dict):
         asyncio.run_coroutine_threadsafe(_broadcast(msg), _loop)
 
 
+def broadcast_tts(text: str):
+    """Send a TTS message to all connected clients (temi mode)."""
+    if _loop and _loop.is_running():
+        msg = json.dumps({"type": "tts", "text": text})
+        asyncio.run_coroutine_threadsafe(_broadcast(msg), _loop)
+
+
 class _ServerHandle:
     """Returned by start_ws_server; mirrors the HTTPServer.shutdown() API."""
 
