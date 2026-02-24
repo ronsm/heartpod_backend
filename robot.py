@@ -245,7 +245,9 @@ class HealthRobotGraph:
 
     def _ask_user(self) -> str:
         """Block until the Android app (or terminal) posts an action."""
-        return action_queue.get()
+        result = action_queue.get()
+        tts.stop()  # cut speech the moment the user acts
+        return result
 
     def _wait_for_proceed(self, action_context: str, robot_message: str = ""):
         """Block until the user confirms they are ready. Handles diversions via LLM."""
