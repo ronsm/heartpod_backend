@@ -5,7 +5,7 @@ import sys
 import threading
 
 from robot import HealthRobotGraph
-from http_server import action_queue, start_http_server, DEFAULT_PORT
+from ws_server import action_queue, start_ws_server, DEFAULT_PORT
 
 
 def _terminal_input_loop():
@@ -34,7 +34,7 @@ def main():
         "--port",
         type=int,
         default=DEFAULT_PORT,
-        help=f"Port for the HTTP server (default: {DEFAULT_PORT})",
+        help=f"Port for the WebSocket server (default: {DEFAULT_PORT})",
     )
     parser.add_argument(
         "--no-printer",
@@ -53,10 +53,9 @@ def main():
         print("Set it with: export OPENAI_API_KEY='your-key-here'")
         return
 
-    server = start_http_server(args.port)
-    print(f"HTTP server listening on port {args.port}")
-    print("  GET  /state  → current page")
-    print("  POST /action → button press from app")
+    server = start_ws_server(args.port)
+    print(f"WebSocket server listening on port {args.port}")
+    print(f"  ws://0.0.0.0:{args.port}  – state push and action receive")
     print("Terminal input also accepted. Type 'quit' or 'exit' to stop.\n")
 
     listen_proc = None

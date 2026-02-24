@@ -14,7 +14,7 @@ from config import PAGE_CONFIG, MAX_RETRIES, READING_TIMEOUT
 from state import ConversationState
 from device import device_queue, simulate_reading, get_real_reading
 from llm_helpers import LLMHelper
-from http_server import action_queue, update_state
+from ws_server import action_queue, update_state
 
 
 class HealthRobotGraph:

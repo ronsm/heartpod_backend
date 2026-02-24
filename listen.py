@@ -1,9 +1,11 @@
 import argparse
+import asyncio
 import json
-import urllib.request
 from queue import Queue
 from threading import Thread
 from typing import Optional
+
+import websockets
 
 import numpy as np
 # Import sounddevice to silence ALSA and JACK warnings:
@@ -132,6 +134,12 @@ def listen(
     audio_queue.put(None)
 
 
+async def _send_ws(ws_url: str, payload: str) -> None:
+    """Open a WebSocket connection, send one message, then close."""
+    async with websockets.connect(ws_url) as ws:
+        await ws.send(payload)
+
+
 def recognize(
     audio_queue: Queue, server_url: str
 ) -> None:
@@ -190,19 +198,13 @@ def recognize(
             if not utterance:
                 continue
 
-            # Send to the coordinator via HTTP
+            # Send to the coordinator via WebSocket
             try:
                 payload = json.dumps(
-                    {"action": "answer", "data": {"answer": utterance}}
-                ).encode()
-                req = urllib.request.Request(
-                    f"{server_url}/action",
-                    data=payload,
-                    headers={"Content-Type": "application/json"},
-                    method="POST",
+                    {"type": "action", "action": "answer", "data": {"answer": utterance}}
                 )
-                urllib.request.urlopen(req, timeout=5)
-            except OSError as error:
+                asyncio.run(_send_ws(server_url, payload))
+            except Exception as error:
                 print(f"  [speech] error: {error}")
             else:
                 print(f"  [speech] '{utterance}'")
@@ -228,7 +230,7 @@ def main():
         test_microphone(args.microphone)
         return
 
-    server_url = f"http://{args.host}:{args.port}"
+    server_url = f"ws://{args.host}:{args.port}"
     print(f"Sending recognized speech to {server_url}")
 
     microphone = sr.Microphone(args.microphone)
