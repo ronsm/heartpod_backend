@@ -101,6 +101,15 @@ def update_state(page_id: int, data: dict):
         asyncio.run_coroutine_threadsafe(_broadcast(msg), _loop)
 
 
+def flush_action_queue():
+    """Discard any actions queued before the current page transition."""
+    while not action_queue.empty():
+        try:
+            action_queue.get_nowait()
+        except queue.Empty:
+            break
+
+
 def broadcast_tts(text: str):
     """Send a TTS message to all connected clients (temi mode)."""
     if _loop and _loop.is_running():

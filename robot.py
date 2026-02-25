@@ -15,7 +15,7 @@ from state import ConversationState
 from device import device_queue, simulate_reading, get_real_reading
 from llm_helpers import LLMHelper
 import tts
-from ws_server import action_queue, update_state
+from ws_server import action_queue, update_state, flush_action_queue
 
 
 class HealthRobotGraph:
@@ -47,6 +47,7 @@ class HealthRobotGraph:
         state["page_id"] = PAGE_CONFIG[stage]["page_id"]
         state["robot_response"] = message
         update_state(int(state["page_id"]), self._build_data(state))
+        flush_action_queue()
         return state
 
     def _build_data(self, state: ConversationState) -> dict:
