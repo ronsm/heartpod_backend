@@ -70,8 +70,8 @@ class HealthRobotGraph:
             return {"message": state["robot_response"]}
         elif stage == "oximeter_done":
             return {
-                "value": f"{r.get('oximeter_hr', '?')} / {r.get('oximeter_spo2', '?')}",
-                "unit": "bpm / %SpO2",
+                "value": f"HR: {r.get('oximeter_hr', '?')} bpm  /  SpO2: {r.get('oximeter_spo2', '?')}%",
+                "unit": "",
             }
         elif stage == "bp_intro":
             return {"device": "blood pressure monitor"}
