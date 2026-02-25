@@ -8,5 +8,6 @@ pyusb>=1.0.0
 faster-whisper
 numpy
 sounddevice
+piper-tts
 SpeechRecognition
 pyaudio

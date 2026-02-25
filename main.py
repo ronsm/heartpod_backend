@@ -52,7 +52,7 @@ def main():
         choices=["none", "local", "temi"],
         default="none",
         help=(
-            "Text-to-speech mode: 'none' (silent), 'local' (speak on this machine via pyttsx3), "
+            "Text-to-speech mode: 'none' (silent), 'local' (speak on this machine via piper-tts), "
             "'temi' (send to the Android app via WebSocket) (default: none)"
         ),
     )

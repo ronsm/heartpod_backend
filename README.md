@@ -6,16 +6,17 @@ A LangGraph-based health screening application for the **Temi** robot. Temi guid
 
 ```
 heartpod_backend/
-├── main.py           ← Entry point: python main.py
-├── config.py         ← All static strings and constants (edit messages here)
-├── state.py          ← ConversationState TypedDict
-├── ws_server.py      ← WebSocket server: pushes state to the app, receives actions
-├── tts.py            ← Text-to-speech engine (local or temi mode)
-├── robot.py          ← HealthRobotGraph – nodes, graph wiring, run loop
-├── device.py         ← device_queue and simulate_reading() (swap for real hardware)
-├── llm_helpers.py    ← LLMHelper class – all LLM prompts live here
-├── listen.py         ← Speech-to-text subprocess (Whisper + SpeechRecognition)
-├── print_utility.py  ← PrintUtility – thermal receipt printer (Epson USB)
+├── main.py              ← Entry point: python main.py
+├── config.py            ← All static strings and constants (edit messages here)
+├── state.py             ← ConversationState TypedDict
+├── ws_server.py         ← WebSocket server: pushes state to the app, receives actions
+├── tts.py               ← Text-to-speech engine (local or temi mode)
+├── robot.py             ← HealthRobotGraph – nodes, graph wiring, run loop
+├── device.py            ← device_queue and simulate_reading() (swap for real hardware)
+├── llm_helpers.py       ← LLMHelper class – all LLM prompts live here
+├── listen.py            ← Speech-to-text subprocess (Whisper + SpeechRecognition)
+├── print_utility.py     ← PrintUtility – thermal receipt printer (Epson USB)
+├── download_voice.py    ← Downloads the Piper TTS alba voice model into ./voices/
 └── sensors/
     ├── sensor_oximeter.py        ← Heart rate / SpO2 via BLE
     ├── sensor_blood_pressure.py  ← Blood pressure via BLE
@@ -70,7 +71,7 @@ python main.py [OPTIONS]
 | `--no-printer` | Disable the thermal receipt printer |
 | `--no-listen` | Disable the speech-to-text listener |
 | `--tts {none,local,temi}` | Text-to-speech mode (default: `none`) |
-| `--port PORT` | Port for the WebSocket server (default: 8000) |
+| `--port PORT` | Port for the WebSocket server (default: `8000`) |
 
 **Examples:**
 
@@ -92,27 +93,36 @@ The `--tts` flag selects the TTS mode:
 | Mode | Description |
 |------|-------------|
 | `none` | Silent – no speech output (default) |
-| `local` | Speaks through the backend machine's audio output (macOS: built-in `say`; Linux: `espeak-ng` or `espeak`) |
+| `local` | Speaks through the backend machine's audio output using [Piper TTS](https://github.com/rhasspy/piper) with the **alba** voice (cross-platform: macOS and Linux) |
 | `temi` | Sends `{"type": "tts", "text": "..."}` WebSocket messages to the Android app for the Temi robot to speak |
 
 The text spoken is exactly what the robot prints to the terminal at each step of the conversation. Speech runs in a background thread and is interrupted immediately when the user acts or a new utterance starts.
 
-**Linux note:** `local` mode requires `espeak-ng` or `espeak` as a system package:
+### Setting up local TTS
+
+`local` mode uses the `piper-tts` Python package with the **en_GB-alba-medium** voice. After installing dependencies, download the voice model (≈65 MB):
+
 ```bash
-sudo apt install espeak-ng     # Debian/Ubuntu
-sudo dnf install espeak-ng     # Fedora/RHEL
+python download_voice.py
 ```
+
+The model is saved to `./voices/` (gitignored). You only need to do this once.
 
 ## Communication Protocol
 
 The backend runs a WebSocket server (default port 8000). The Android app connects to `ws://<host>:8000`.
 
-**Backend → app** (state push, sent on every page transition and on connect):
+**Backend → app** — state push, sent on every page transition and immediately on connect:
 ```json
 {"type": "state", "page_id": 1, "data": {"message": "...", ...}}
 ```
 
-**App → backend** (button/action events):
+**Backend → app** — TTS (temi mode only), robot speech forwarded to the Temi Android app:
+```json
+{"type": "tts", "text": "Hello, welcome to the health check pod."}
+```
+
+**App → backend** — button/action events:
 ```json
 {"type": "action", "action": "start", "data": {}}
 ```

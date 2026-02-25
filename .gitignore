@@ -11,6 +11,7 @@ build/
 .eggs/
 
 # Virtual environment (this project uses a venv in-place)
+venv/
 bin/
 include/
 lib/
@@ -42,6 +43,9 @@ share/
 # Logs
 *.log
 logs/
+
+# Piper TTS voice models (large binary files — download with download_voice.py)
+voices/
 
 # Claude Code session data
 .claude/
