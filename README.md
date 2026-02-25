@@ -57,6 +57,12 @@ heartpod_backend/
    export OPENAI_API_KEY='your-api-key-here'
    ```
 
+3. **(Optional) Download the local TTS voice model** — required if using `--tts local`:
+   ```bash
+   python download_voice.py
+   ```
+   This downloads the Piper **alba** voice (~65 MB) into `./voices/`. Only needed once.
+
 ## Running
 
 ```bash
