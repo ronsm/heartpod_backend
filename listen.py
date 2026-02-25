@@ -1,11 +1,7 @@
 import argparse
-import asyncio
-import json
 from queue import Queue
 from threading import Thread
 from typing import Optional
-
-import websockets
 
 import numpy as np
 # Import sounddevice to silence ALSA and JACK warnings:
@@ -13,8 +9,6 @@ import numpy as np
 import sounddevice
 import speech_recognition as sr
 from faster_whisper import WhisperModel
-
-from ws_server import DEFAULT_PORT
 
 
 def listen(
@@ -57,20 +51,11 @@ def listen(
     audio_queue.put(None)
 
 
-async def _send_ws(ws_url: str, payload: str) -> None:
-    """Open a WebSocket connection, send one message, then close."""
-    async with websockets.connect(ws_url) as ws:
-        await ws.send(payload)
-
-
-def recognize(
-    audio_queue: Queue, server_url: str
-) -> None:
+def recognize(audio_queue: Queue, action_queue: Queue) -> None:
     """Run speech recognition.
 
-    This function must be run in a thread. It dequeues from a message
-    queue holding audio data captured by the listen() function in a
-    different thread.
+    This function must be run in a thread. It dequeues audio captured by
+    listen() and puts recognised text directly onto action_queue.
     """
     hallucinations = [
         # Empty string
@@ -90,8 +75,14 @@ def recognize(
         "MBC 뉴스",
     ]
 
-    print("Loading Whisper model on GPU...")
-    model = WhisperModel("base.en", device="cuda", compute_type="float16")
+    try:
+        import ctranslate2
+        device = "cuda" if ctranslate2.get_cuda_device_count() > 0 else "cpu"
+    except Exception:
+        device = "cpu"
+    compute_type = "float16" if device == "cuda" else "int8"
+    print(f"Loading Whisper model on {device.upper()}...")
+    model = WhisperModel("base.en", device=device, compute_type=compute_type)
     print("Whisper model ready.")
 
     while True:
@@ -121,16 +112,8 @@ def recognize(
             if not utterance:
                 continue
 
-            # Send to the coordinator via WebSocket
-            try:
-                payload = json.dumps(
-                    {"type": "action", "action": "answer", "data": {"answer": utterance}}
-                )
-                asyncio.run(_send_ws(server_url, payload))
-            except Exception as error:
-                print(f"  [speech] error: {error}")
-            else:
-                print(f"  [speech] '{utterance}'")
+            action_queue.put(utterance)
+            print(f"  [speech] '{utterance}'")
 
         except Exception as error:
             print(f"  [speech] recognition error: {error}")
@@ -141,7 +124,7 @@ def recognize(
 
 
 def main():
-    """Run the speech-to-text interface (this program)."""
+    """Run the speech-to-text interface standalone (for microphone testing)."""
     parser = argparse.ArgumentParser(
         description="Speech-to-text interface for the self-screening health station"
     )
@@ -171,17 +154,6 @@ def main():
             "if unspecified, automatic calibration is performed)"
         ),
     )
-    parser.add_argument(
-        "--host",
-        default="localhost",
-        help="hostname of the WebSocket server (default: localhost)",
-    )
-    parser.add_argument(
-        "--port",
-        type=int,
-        default=DEFAULT_PORT,
-        help=f"port of the WebSocket server (default: {DEFAULT_PORT})",
-    )
     args = parser.parse_args()
 
     if args.list_microphones:
@@ -195,23 +167,15 @@ def main():
     if args.energy_threshold is not None and not 0 <= args.energy_threshold <= 4000:
         parser.error("energy threshold must be between 0 and 4000")
 
-    server_url = f"ws://{args.host}:{args.port}"
-    print(f"Sending recognized speech to {server_url}")
-
     microphone = sr.Microphone(args.microphone)
     recognizer = sr.Recognizer()
-
-    # Audio processing job queue (FIFO) used for communication
-    # between the listener thread and the recognizer thread
     audio_queue = Queue()
+    output_queue = Queue()  # standalone: just print, don't route anywhere
 
-    # Start a new thread to recognize audio...
-    worker = Thread(target=recognize, args=(audio_queue, server_url))
+    worker = Thread(target=recognize, args=(audio_queue, output_queue))
     worker.start()
 
-    # ...while this thread focuses on listening
     listen(recognizer, audio_queue, microphone, args.energy_threshold)
-
     worker.join()
 
 

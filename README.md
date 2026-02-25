@@ -135,7 +135,7 @@ The backend runs a WebSocket server (default port 8000). The Android app connect
 
 ## Speech-to-Text (`listen.py`)
 
-`listen.py` runs as a subprocess and connects to the same WebSocket server, sending recognised speech as `action=answer` messages. It can also be run standalone for microphone testing:
+`listen.py` runs as two daemon threads inside the main process — one captures microphone audio, the other transcribes it with Whisper and pushes the result directly onto `action_queue`. It can also be run standalone for microphone testing:
 
 ```bash
 # List available microphones

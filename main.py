@@ -1,10 +1,10 @@
 import argparse
 import os
-import subprocess
-import sys
 import threading
+from queue import Queue
 
 import tts
+from listen import listen, recognize
 from robot import HealthRobotGraph
 from ws_server import action_queue, start_ws_server, DEFAULT_PORT
 
@@ -69,13 +69,14 @@ def main():
     print(f"  ws://0.0.0.0:{args.port}  – state push and action receive")
     print("Terminal input also accepted. Type 'quit' or 'exit' to stop.\n")
 
-    listen_proc = None
     if not args.no_listen:
-        listen_script = os.path.join(os.path.dirname(__file__), "listen.py")
-        listen_proc = subprocess.Popen(
-            [sys.executable, listen_script, "--port", str(args.port)],
-        )
-        print(f"Speech listener started (PID {listen_proc.pid})\n")
+        import speech_recognition as sr
+        microphone = sr.Microphone()
+        recognizer = sr.Recognizer()
+        audio_queue = Queue()
+        threading.Thread(target=listen, args=(recognizer, audio_queue, microphone), daemon=True).start()
+        threading.Thread(target=recognize, args=(audio_queue, action_queue), daemon=True).start()
+        print("Speech listener started\n")
 
     input_thread = threading.Thread(target=_terminal_input_loop, daemon=True)
     input_thread.start()
@@ -88,8 +89,6 @@ def main():
         pass
     finally:
         print("\nShutting down.")
-        if listen_proc is not None:
-            listen_proc.terminate()
         server.shutdown()
 
 
