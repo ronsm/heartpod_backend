@@ -14,17 +14,25 @@ Local mode requires:
   - piper-tts Python package  (`pip install piper-tts`)
   - Alba voice model in ./voices/en_GB-alba-medium.onnx
   Run `python download_voice.py` to fetch the voice model automatically.
+
+Linux note: playback uses `aplay` (part of alsa-utils) to avoid PortAudio/ALSA
+underrun hangs that occur with sounddevice.
 """
 
+import io
 import os
+import subprocess
+import sys
 import threading
+import wave
 
 _mode: str = "none"
 _voice = None           # piper.voice.PiperVoice, loaded once at init
 _stop_flag = threading.Event()
 _seq_lock = threading.Lock()
 _current_seq: int = 0   # incremented on every stop(); threads bail if stale
-_sd_active = threading.Event()  # set only while sd.play()/sd.wait() is running
+_proc_lock = threading.Lock()
+_current_proc = None    # current aplay/afplay subprocess
 
 _VOICES_DIR = os.path.join(os.path.dirname(__file__), "voices")
 _PIPER_MODEL = os.path.join(_VOICES_DIR, "en_GB-alba-medium.onnx")
@@ -75,21 +83,23 @@ def stop() -> None:
     _stop_flag.set()
     with _seq_lock:
         _current_seq += 1
-    if _sd_active.is_set():
-        try:
-            import sounddevice as sd
-            sd.stop()
-        except Exception:
-            pass
+    with _proc_lock:
+        if _current_proc is not None:
+            try:
+                _current_proc.kill()
+            except Exception:
+                pass
 
 
 def _speak_local(text: str, seq: int) -> None:
-    """Worker: synthesise with piper, then play via sounddevice."""
+    """Worker: synthesise with piper, then play via aplay (Linux) or afplay (macOS)."""
+    global _current_proc
+
     if _stop_flag.is_set():
         return
 
-    # synthesize() yields AudioChunk objects; audio_float_array is float32 in [-1, 1]
     try:
+        import numpy as np
         chunks = [chunk.audio_float_array for chunk in _voice.synthesize(text)]
     except Exception as e:
         print(f"  [TTS synthesis error: {e}]")
@@ -105,12 +115,46 @@ def _speak_local(text: str, seq: int) -> None:
         return
 
     import numpy as np
-    import sounddevice as sd
 
     audio = np.concatenate(chunks)
-    _sd_active.set()
+    audio_int16 = (audio * 32767).clip(-32768, 32767).astype(np.int16)
+
+    buf = io.BytesIO()
+    with wave.open(buf, 'wb') as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(_voice.config.sample_rate)
+        wf.writeframes(audio_int16.tobytes())
+    wav_bytes = buf.getvalue()
+
+    if sys.platform == "darwin":
+        # macOS: afplay reads from stdin with -f WAVE
+        cmd = ["afplay", "-"]
+    else:
+        # Linux: aplay reads WAV from stdin; -q suppresses ALSA noise
+        cmd = ["aplay", "-q", "-"]
+
     try:
-        sd.play(audio, samplerate=_voice.config.sample_rate)
-        sd.wait()
+        proc = subprocess.Popen(
+            cmd,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except FileNotFoundError:
+        print(f"  [TTS: playback command not found: {cmd[0]}]")
+        return
+
+    with _proc_lock:
+        _current_proc = proc
+
+    try:
+        proc.stdin.write(wav_bytes)
+        proc.stdin.close()
+        proc.wait()
+    except Exception:
+        pass
     finally:
-        _sd_active.clear()
+        with _proc_lock:
+            if _current_proc is proc:
+                _current_proc = None
