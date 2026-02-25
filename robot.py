@@ -15,7 +15,11 @@ from state import ConversationState
 from device import device_queue, simulate_reading, get_real_reading
 from llm_helpers import LLMHelper
 import tts
-from ws_server import action_queue, update_state, flush_action_queue
+from ws_server import action_queue, reset_event, update_state, flush_action_queue
+
+
+class _ResetRequested(Exception):
+    """Raised when the user taps the Reset button; unwinds to the run() loop."""
 
 
 class HealthRobotGraph:
@@ -245,10 +249,19 @@ class HealthRobotGraph:
         tts.speak(msg)
 
     def _ask_user(self) -> str:
-        """Block until the Android app (or terminal) posts an action."""
-        result = action_queue.get()
-        tts.stop()  # cut speech the moment the user acts
-        return result
+        """Block until the Android app (or terminal) posts an action.
+        Raises _ResetRequested immediately if the reset button has been pressed."""
+        while True:
+            if reset_event.is_set():
+                raise _ResetRequested()
+            try:
+                result = action_queue.get(timeout=0.2)
+            except queue_module.Empty:
+                continue
+            tts.stop()  # cut speech the moment the user acts
+            if reset_event.is_set():
+                raise _ResetRequested()
+            return result
 
     def _wait_for_proceed(self, action_context: str, robot_message: str = ""):
         """Block until the user confirms they are ready. Handles diversions via LLM."""
@@ -257,6 +270,20 @@ class HealthRobotGraph:
             should_go, message = self.llm.evaluate_proceed(user_input, action_context, robot_message)
             if should_go:
                 return
+            self._print_robot(message)
+
+    def _confirm_reading(self, action_context: str, robot_message: str = "") -> bool:
+        """
+        Wait for the user to confirm a captured reading or request a redo.
+        Returns True if confirmed, False if they want to retry the reading.
+        """
+        while True:
+            user_input = self._ask_user()
+            if user_input.lower() == "retry":
+                return False
+            should_go, message = self.llm.evaluate_proceed(user_input, action_context, robot_message)
+            if should_go:
+                return True
             self._print_robot(message)
 
     def _do_device_reading(self, device: str, state: ConversationState) -> bool:
@@ -315,8 +342,9 @@ class HealthRobotGraph:
             if self._do_device_reading(device, state):
                 state = done_node(state)
                 self._print_robot(state["robot_response"], state["page_id"])
-                self._wait_for_proceed(PAGE_CONFIG[done_stage]["action_context"], state["robot_response"])
-                return True
+                if self._confirm_reading(PAGE_CONFIG[done_stage]["action_context"], state["robot_response"]):
+                    return True
+                continue  # user pressed Retry — redo the reading
 
             # Device timeout → sorry
             state["retry_count"] += 1
@@ -369,72 +397,78 @@ class HealthRobotGraph:
         print("=" * 60)
         print("(Type 'quit' or 'exit' to end)\n")
 
-        while True:  # outer loop: returns here after recap or giving up
-            state: ConversationState = {
-                "current_stage": "idle",
-                "page_id": PAGE_CONFIG["idle"]["page_id"],
-                "user_input": "",
-                "robot_response": "",
-                "answers": {},
-                "readings": {},
-                "retry_stage": "",
-                "retry_count": 0,
-                "should_continue": False,
-            }
+        while True:  # outer loop: returns here after recap, giving up, or reset
+            reset_event.clear()
+            flush_action_queue()
+            try:
+                state: ConversationState = {
+                    "current_stage": "idle",
+                    "page_id": PAGE_CONFIG["idle"]["page_id"],
+                    "user_input": "",
+                    "robot_response": "",
+                    "answers": {},
+                    "readings": {},
+                    "retry_stage": "",
+                    "retry_count": 0,
+                    "should_continue": False,
+                }
 
-            # ── idle ──────────────────────────────────────────────────
-            state = self.idle_node(state)
-            self._print_robot(state["robot_response"], state["page_id"])
-            self._wait_for_proceed(PAGE_CONFIG["idle"]["action_context"], state["robot_response"])
-
-            # ── welcome ───────────────────────────────────────────────
-            state = self.welcome_node(state)
-            self._print_robot(state["robot_response"], state["page_id"])
-            self._wait_for_proceed(PAGE_CONFIG["welcome"]["action_context"], state["robot_response"])
-
-            # ── questionnaire ─────────────────────────────────────────
-            for qkey in ("q1", "q2", "q3"):
-                q_node = getattr(self, f"{qkey}_node")
-                state = q_node(state)
+                # ── idle ──────────────────────────────────────────────────
+                state = self.idle_node(state)
                 self._print_robot(state["robot_response"], state["page_id"])
-                while True:
-                    user_input = self._ask_user()
-                    intent, value = self.llm.evaluate_questionnaire_input(
-                        user_input, qkey, PAGE_CONFIG[qkey]["message"]
-                    )
-                    if intent == "skip":
-                        state["answers"][qkey] = "skipped"
-                        print(f"  [Question {qkey} skipped]")
-                        break
-                    if intent == "answer":
-                        state["answers"][qkey] = value
-                        print(f"  [Recorded {qkey}: {value}]")
-                        break
-                    opts = "\n".join(
-                        f"  {i+1}. {o}"
-                        for i, o in enumerate(PAGE_CONFIG[qkey]["options"])
-                    )
-                    self._print_robot(
-                        f"I didn't quite catch that. Please choose one of:\n{opts}"
-                    )
+                self._wait_for_proceed(PAGE_CONFIG["idle"]["action_context"], state["robot_response"])
 
-            # ── measure intro ─────────────────────────────────────────
-            state = self.measure_intro_node(state)
-            self._print_robot(state["robot_response"], state["page_id"])
-            self._wait_for_proceed(PAGE_CONFIG["measure_intro"]["action_context"], state["robot_response"])
+                # ── welcome ───────────────────────────────────────────────
+                state = self.welcome_node(state)
+                self._print_robot(state["robot_response"], state["page_id"])
+                self._wait_for_proceed(PAGE_CONFIG["welcome"]["action_context"], state["robot_response"])
 
-            # ── device readings ───────────────────────────────────────
-            if not self._reading_loop(
-                "oximeter", "oximeter_intro", "oximeter_done", state
-            ):
-                continue
-            if not self._reading_loop("bp", "bp_intro", "bp_done", state):
-                continue
-            if not self._reading_loop("scale", "scale_intro", "scale_done", state):
-                continue
+                # ── questionnaire ─────────────────────────────────────────
+                for qkey in ("q1", "q2", "q3"):
+                    q_node = getattr(self, f"{qkey}_node")
+                    state = q_node(state)
+                    self._print_robot(state["robot_response"], state["page_id"])
+                    while True:
+                        user_input = self._ask_user()
+                        intent, value = self.llm.evaluate_questionnaire_input(
+                            user_input, qkey, PAGE_CONFIG[qkey]["message"]
+                        )
+                        if intent == "skip":
+                            state["answers"][qkey] = "skipped"
+                            print(f"  [Question {qkey} skipped]")
+                            break
+                        if intent == "answer":
+                            state["answers"][qkey] = value
+                            print(f"  [Recorded {qkey}: {value}]")
+                            break
+                        opts = "\n".join(
+                            f"  {i+1}. {o}"
+                            for i, o in enumerate(PAGE_CONFIG[qkey]["options"])
+                        )
+                        self._print_robot(
+                            f"I didn't quite catch that. Please choose one of:\n{opts}"
+                        )
 
-            # ── recap ─────────────────────────────────────────────────
-            state = self.recap_node(state)
-            self._print_robot(state["robot_response"], state["page_id"])
-            self._print_receipt(state)
-            self._ask_user()  # any input returns to idle
+                # ── measure intro ─────────────────────────────────────────
+                state = self.measure_intro_node(state)
+                self._print_robot(state["robot_response"], state["page_id"])
+                self._wait_for_proceed(PAGE_CONFIG["measure_intro"]["action_context"], state["robot_response"])
+
+                # ── device readings ───────────────────────────────────────
+                if not self._reading_loop(
+                    "oximeter", "oximeter_intro", "oximeter_done", state
+                ):
+                    continue
+                if not self._reading_loop("bp", "bp_intro", "bp_done", state):
+                    continue
+                if not self._reading_loop("scale", "scale_intro", "scale_done", state):
+                    continue
+
+                # ── recap ─────────────────────────────────────────────────
+                state = self.recap_node(state)
+                self._print_robot(state["robot_response"], state["page_id"])
+                self._print_receipt(state)
+                self._ask_user()  # any input returns to idle
+
+            except _ResetRequested:
+                print("\n  [Reset requested — restarting]\n")

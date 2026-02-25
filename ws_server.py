@@ -30,6 +30,10 @@ _ws_state: dict = {"page_id": 1, "data": {}}
 # robot._ask_user() blocks on this queue.
 action_queue: queue.Queue = queue.Queue()
 
+# Set when the user requests a full reset; checked independently of the queue
+# so it survives flush_action_queue() calls during page transitions.
+reset_event: threading.Event = threading.Event()
+
 # All currently connected WebSocket clients (accessed only from the event loop).
 _clients: Set[WebSocketServerProtocol] = set()
 
@@ -64,6 +68,10 @@ async def _handler(websocket: WebSocketServerProtocol):
                 continue
             action = msg.get("action", "")
             data = msg.get("data", {})
+            if action == "reset":
+                reset_event.set()
+                print("\n  [app] reset requested")
+                continue
             # Answers carry the full option text; everything else maps via the table.
             if action == "answer":
                 text = data.get("answer", action)
