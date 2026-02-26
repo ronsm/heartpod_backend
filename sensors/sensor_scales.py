@@ -18,7 +18,7 @@ LISTEN_SECONDS = 180
 MAX_ATTEMPTS = 3
 
 
-def parse_vitafit_frame(hexstr: str):
+def _parse_vitafit_frame(hexstr: str):
     b = bytes.fromhex(hexstr)
 
     # minimal framing checks
@@ -43,7 +43,7 @@ def parse_vitafit_frame(hexstr: str):
     return {"type": "other", "cmd": f"{cmd1:02x}{cmd2:02x}", "len": len(b), "length": length}
 
 
-async def find_device():
+async def _find_device():
     if DEVICE_ADDRESS:
         device = await BleakScanner.find_device_by_address(DEVICE_ADDRESS, timeout=30.0)
         return device.address if device else None
@@ -65,7 +65,7 @@ async def get_reading():
             print(f"\nAttempt {attempt}/{MAX_ATTEMPTS} — step on the scale to turn it on.")
 
         print("Waiting for scale to turn on...")
-        addr = await find_device()
+        addr = await _find_device()
         if not addr:
             print("Could not find the Vitafit scale. Make sure it is on and try again.")
             continue
@@ -92,7 +92,7 @@ async def get_reading():
                     if result[0] is not None:
                         return
                     hexstr = bytes(data).hex()
-                    decoded = parse_vitafit_frame(hexstr)
+                    decoded = _parse_vitafit_frame(hexstr)
                     if decoded and decoded.get("type") == "weight" and decoded.get("stable"):
                         kg = decoded["kg"]
                         print(f"Final Reading = {kg:.2f} kg")

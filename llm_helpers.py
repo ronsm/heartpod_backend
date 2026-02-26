@@ -15,15 +15,14 @@ from config import LLM_MODEL, LLM_TEMPERATURE, PAGE_CONFIG
 
 class LLMHelper:
     def __init__(self):
-        self.llm = ChatOpenAI(model=LLM_MODEL, temperature=LLM_TEMPERATURE)
-        self.strict_llm = ChatOpenAI(model=LLM_MODEL, temperature=0.0)
+        self._llm = ChatOpenAI(model=LLM_MODEL, temperature=LLM_TEMPERATURE)
 
     def evaluate_proceed(
         self, user_input: str, action_context: str, robot_message: str = ""
     ) -> Tuple[bool, Optional[str]]:
         """
-        Single LLM call: classify intent and generate a response if not ready.
-        Returns (should_proceed, message_or_None).
+        Classify user intent and generate a response if they are not ready.
+        Returns (should_proceed, follow_up_message_or_None).
         """
         robot_context = (
             f"The robot just said:\n  \"{robot_message}\"\n\n"
@@ -48,7 +47,7 @@ class LLMHelper:
             ),
             HumanMessage(content=f"User said: {user_input}"),
         ]
-        response = self.strict_llm.invoke(messages)
+        response = self._llm.invoke(messages)
         text = response.content.strip()
         if text.upper() == "PROCEED":
             return True, None
@@ -58,7 +57,7 @@ class LLMHelper:
         self, user_input: str, question_key: str, question_text: str = ""
     ) -> Tuple[str, Optional[str]]:
         """
-        Single LLM call: determine if user is skipping, answering, or unclear.
+        Determine if the user is skipping, answering, or unclear.
         Returns ("skip", None) | ("answer", matched_option) | ("unclear", None).
         """
         options = PAGE_CONFIG[question_key]["options"]
@@ -86,7 +85,7 @@ class LLMHelper:
             ),
             HumanMessage(content=f"User said: {user_input}"),
         ]
-        response = self.strict_llm.invoke(messages)
+        response = self._llm.invoke(messages)
         result = response.content.strip()
         upper = result.upper()
         if upper == "SKIP":
@@ -114,5 +113,5 @@ class LLMHelper:
             ),
             HumanMessage(content=f"User said: {user_input}"),
         ]
-        response = self.llm.invoke(messages)
+        response = self._llm.invoke(messages)
         return "RETRY" in response.content.upper()

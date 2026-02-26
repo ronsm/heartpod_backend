@@ -1,10 +1,22 @@
 # ---------------------------------------------------------------------------
 # Runtime constants
 # ---------------------------------------------------------------------------
-READING_TIMEOUT = 30  # seconds before a device reading times out
-MAX_RETRIES = 3  # max consecutive sorry-retries before returning to idle
+
+# Application-level retry limit: how many times the user can ask to redo
+# a failed device reading before the session returns to idle.
+# (Distinct from per-sensor BLE connection attempts, which live in each sensor module.)
+MAX_RETRIES = 3
+
+# Timeout used in dummy/simulated mode when waiting for a fake device reading.
+READING_TIMEOUT = 30  # seconds
+
+# LLM settings — temperature 0.0 gives deterministic, consistent classifications.
 LLM_MODEL = "gpt-4o-mini"
-LLM_TEMPERATURE = 0.7
+LLM_TEMPERATURE = 0.0
+
+# How long to wait after TTS finishes before reopening the ASR pipeline.
+# Increase if the ASR still occasionally hears the tail end of the robot's voice.
+ASR_UNMUTE_DELAY = 1.0  # seconds
 
 # ---------------------------------------------------------------------------
 # PAGE_CONFIG – single source of all static strings
@@ -194,9 +206,7 @@ PAGE_CONFIG = {
     },
     "sorry": {
         "page_id": "17",
-        "message_device": (
-            "Sorry, we weren't able to get a reading. Would you like to try again?"
-        ),
+        "message": "Sorry, we weren't able to get a reading. Would you like to try again?",
         "action_context": "deciding whether to retry the failed device reading",
     },
 }

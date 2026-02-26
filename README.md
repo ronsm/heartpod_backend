@@ -9,12 +9,13 @@ heartpod_backend/
 ├── main.py              ← Entry point: python main.py
 ├── config.py            ← All static strings and constants (edit messages here)
 ├── state.py             ← ConversationState TypedDict
+├── asr.py               ← ASR mute/unmute state (shared by tts.py and ws_server.py)
 ├── ws_server.py         ← WebSocket server: pushes state to the app, receives actions
-├── tts.py               ← Text-to-speech engine (local or temi mode)
+├── tts.py               ← Text-to-speech engine (none / local / temi mode)
 ├── robot.py             ← HealthRobotGraph – nodes, graph wiring, run loop
 ├── device.py            ← device_queue and simulate_reading() (swap for real hardware)
 ├── llm_helpers.py       ← LLMHelper class – all LLM prompts live here
-├── listen.py            ← Speech-to-text subprocess (Whisper + SpeechRecognition)
+├── listen.py            ← Speech-to-text (Whisper + SpeechRecognition)
 ├── print_utility.py     ← PrintUtility – thermal receipt printer (Epson USB)
 ├── download_voice.py    ← Downloads the Piper TTS alba voice model into ./voices/
 └── sensors/
@@ -77,6 +78,7 @@ python main.py [OPTIONS]
 | `--no-printer` | Disable the thermal receipt printer |
 | `--no-listen` | Disable the speech-to-text listener |
 | `--tts {none,local,temi}` | Text-to-speech mode (default: `none`) |
+| `--microphone N` | Microphone device index (run `python listen.py --list-microphones` to list options; defaults to the system default input device) |
 | `--port PORT` | Port for the WebSocket server (default: `8000`) |
 
 **Examples:**
@@ -85,8 +87,11 @@ python main.py [OPTIONS]
 # Full production run (real sensors + printer, Temi TTS)
 python main.py --tts temi
 
-# Development / demo run (simulated sensors, local TTS via speakers)
-python main.py --dummy --no-printer --no-listen --tts local
+# Development / demo run (simulated sensors, local TTS, local microphone)
+python main.py --dummy --no-printer --tts local
+
+# Same but force a specific microphone (useful if the default input is wrong)
+python main.py --dummy --no-printer --tts local --microphone 1
 
 # Real sensors, no printer, custom port, silent
 python main.py --no-printer --port 8080
@@ -99,10 +104,12 @@ The `--tts` flag selects the TTS mode:
 | Mode | Description |
 |------|-------------|
 | `none` | Silent – no speech output (default) |
-| `local` | Speaks through the backend machine's audio output using [Piper TTS](https://github.com/rhasspy/piper) with the **alba** voice (cross-platform: macOS and Linux) |
+| `local` | Speaks through the backend machine's audio output using [Piper TTS](https://github.com/rhasspy/piper) with the **alba** voice (macOS: `afplay`; Linux: `aplay`) |
 | `temi` | Sends `{"type": "tts", "text": "..."}` WebSocket messages to the Android app for the Temi robot to speak |
 
 The text spoken is exactly what the robot prints to the terminal at each step of the conversation. Speech runs in a background thread and is interrupted immediately when the user acts or a new utterance starts.
+
+In both `local` and `temi` modes, **the Android app's input buttons are locked for the duration of every TTS utterance** so the user cannot tap buttons while the robot is speaking.
 
 ### Setting up local TTS
 
@@ -123,15 +130,29 @@ The backend runs a WebSocket server (default port 8000). The Android app connect
 {"type": "state", "page_id": 1, "data": {"message": "...", ...}}
 ```
 
-**Backend → app** — TTS (temi mode only), robot speech forwarded to the Temi Android app:
+**Backend → app** — TTS utterance (temi mode only), forwarded to the Temi robot to speak:
 ```json
 {"type": "tts", "text": "Hello, welcome to the health check pod."}
+```
+
+**Backend → app** — TTS active flag (local mode), locks/unlocks input buttons on the display:
+```json
+{"type": "tts_active", "active": true}
+{"type": "tts_active", "active": false}
 ```
 
 **App → backend** — button/action events:
 ```json
 {"type": "action", "action": "start", "data": {}}
 ```
+
+**App → backend** — TTS status (temi mode only), sent by the app when Temi starts/stops speaking:
+```json
+{"type": "tts_status", "status": "start"}
+{"type": "tts_status", "status": "stop"}
+```
+
+The `tts_status=stop` event triggers the ASR unmute (after `ASR_UNMUTE_DELAY`). A fallback timer in `tts.py` handles unmuting if the event is never received (e.g. on emulator). `tts_status=start` is logged but has no other effect since the ASR is already muted by the time it arrives.
 
 ## Speech-to-Text (`listen.py`)
 
@@ -145,11 +166,19 @@ python listen.py --list-microphones
 python listen.py --microphone 2 --energy-threshold 300
 ```
 
+## ASR Muting
+
+To prevent the microphone from picking up the robot's own voice, the ASR pipeline is muted for the duration of every TTS utterance plus a configurable buffer (default **1.0 s**) to let any audio already captured drain through Whisper before the pipeline reopens. The buffer is set by `ASR_UNMUTE_DELAY` in `config.py`.
+
+**Local TTS** (`--tts local`): muting is driven entirely by the backend. `tts.speak()` mutes immediately and broadcasts `tts_active=true` to lock the app's buttons; the playback thread unmutes and broadcasts `tts_active=false` when audio finishes. A sequence guard ensures that a thread interrupted by `stop()` cannot unmute while a newer utterance is already playing.
+
+**Temi TTS** (`--tts temi`): the backend mutes when it sends the TTS WebSocket message. The app locks its buttons on receipt of the `tts` message, then sends `tts_status=stop` when Temi finishes speaking, which triggers the backend unmute. A fallback timer also broadcasts `tts_active=false` (unlocking the app) after an estimated playback duration, acting as a safety net when running without real Temi hardware.
+
 ## Key Design Decisions
 
 - **All dialogue strings live in `config.py`** (`PAGE_CONFIG`). Edit messages there – do not hardcode strings elsewhere.
 - **Questionnaire questions (Q1/Q2/Q3)** re-prompt inline on invalid input; they never trigger the sorry page. Any question can be skipped (recorded as `"skipped"`).
-- **The sorry page is triggered by device timeouts only**, not by user confusion or invalid input. Off-topic questions at any state are handled gracefully by `LLMHelper.handle_general_question()`, which answers then re-prompts within the same state.
+- **The sorry page is triggered by device timeouts only**, not by user confusion or invalid input. Off-topic or unclear responses at any confirmation step are handled by `LLMHelper.evaluate_proceed()`, which generates a helpful reply and re-prompts within the same state.
 - **Device readings** block on a queue (`device_queue.get(timeout=30)`). For demo purposes, `simulate_reading()` in `device.py` auto-fires a fake reading. Remove that call in `robot.py` when connecting real hardware.
 
 ## Configuration (`config.py`)
@@ -159,4 +188,4 @@ python listen.py --microphone 2 --energy-threshold 300
 | `READING_TIMEOUT` | 30s | Seconds before a device reading times out |
 | `MAX_RETRIES` | 3 | Consecutive sorry-retries before returning to idle |
 | `LLM_MODEL` | `gpt-4o-mini` | OpenAI model used for intent detection |
-| `LLM_TEMPERATURE` | 0.7 | LLM temperature |
+| `LLM_TEMPERATURE` | 0.0 | LLM temperature (0.0 = deterministic) |

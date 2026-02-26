@@ -56,6 +56,13 @@ def main():
             "'temi' (send to the Android app via WebSocket) (default: none)"
         ),
     )
+    parser.add_argument(
+        "--microphone",
+        metavar="N",
+        type=int,
+        default=None,
+        help="Microphone device index (run 'python listen.py --list-microphones' to list options)",
+    )
     args = parser.parse_args()
 
     if not os.getenv("OPENAI_API_KEY"):
@@ -71,7 +78,7 @@ def main():
 
     if not args.no_listen:
         import speech_recognition as sr
-        microphone = sr.Microphone()
+        microphone = sr.Microphone(device_index=args.microphone)
         recognizer = sr.Recognizer()
         audio_queue = Queue()
         threading.Thread(target=listen, args=(recognizer, audio_queue, microphone), daemon=True).start()

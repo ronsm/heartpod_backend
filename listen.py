@@ -4,11 +4,13 @@ from threading import Thread
 from typing import Optional
 
 import numpy as np
-# Import sounddevice to silence ALSA and JACK warnings:
+# Imported for its side effect of silencing ALSA/JACK console warnings:
 # https://github.com/Uberi/speech_recognition/issues/182
-import sounddevice
+import sounddevice  # noqa: F401
 import speech_recognition as sr
 from faster_whisper import WhisperModel
+
+import asr
 
 
 def listen(
@@ -17,24 +19,17 @@ def listen(
     microphone: sr.Microphone,
     energy_threshold: Optional[int] = None,
 ) -> None:
-    """Capture microphone input.
+    """Capture microphone input and enqueue audio chunks for recognition.
 
-    This function must be run in a thread. It enqueues the captured
-    audio data in a message queue for consumption by the recognize()
-    function in a different thread.
+    Runs in a dedicated thread. Enqueues captured audio onto audio_queue
+    for consumption by recognize() in a separate thread.
     """
     with microphone as source:
-        # Set the initial energy threshold...
         if energy_threshold:
-            # ...either by using the value specified by the user...
             recognizer.energy_threshold = energy_threshold
         else:
-            # ...or by listening for 1 second (by default) to calibrate
-            # the energy threshold for ambient noise levels
             print("Adjusting for ambient noise... Please be quiet")
             recognizer.adjust_for_ambient_noise(source)
-        # Repeatedly listen for phrases until the user hits Ctrl+C and
-        # put the resulting audio on the audio processing job queue
         print("Listening... Say something!")
         try:
             while True:
@@ -43,37 +38,28 @@ def listen(
             pass
 
     print("Stopped listening")
-
-    # Block until all current audio processing jobs are done (empty queue)
     audio_queue.join()
-
-    # Tell the other thread that no other audio processing job is coming
-    audio_queue.put(None)
+    audio_queue.put(None)  # signal recognize() that no more audio is coming
 
 
 def recognize(audio_queue: Queue, action_queue: Queue) -> None:
-    """Run speech recognition.
+    """Transcribe audio chunks and forward recognised text to action_queue.
 
-    This function must be run in a thread. It dequeues audio captured by
-    listen() and puts recognised text directly onto action_queue.
+    Runs in a dedicated thread. Discards known Whisper hallucinations and
+    any audio captured while the ASR is muted (during TTS playback).
     """
-    hallucinations = [
-        # Empty string
+    _hallucinations = {
         "",
-        # Thank you phrases
         "Thank you for watching",
         "Thanks for watching",
         "Thank you for your attention",
-        # Subscription/engagement prompts
         "Please subscribe",
         "Don't forget to like and subscribe",
         "Hit the bell icon",
-        # Filler phrases
         "You",
         "Subtitles by the Amara.org community",
-        # Korean broadcaster signature
         "MBC 뉴스",
-    ]
+    }
 
     try:
         import ctranslate2
@@ -86,30 +72,26 @@ def recognize(audio_queue: Queue, action_queue: Queue) -> None:
     print("Whisper model ready.")
 
     while True:
-        # Retrieve an audio processing job from the queue
         audio = audio_queue.get()
-
-        # Stop all audio processing if the other thread is done
         if audio is None:
             audio_queue.task_done()
             break
 
         try:
-            # Convert sr.AudioData to float32 numpy array at 16 kHz
             raw = audio.get_raw_data(convert_rate=16000, convert_width=2)
             audio_np = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
 
-            segments, _ = model.transcribe(audio_np, language="en")
+            with np.errstate(divide="ignore", over="ignore", invalid="ignore"):
+                segments, _ = model.transcribe(audio_np, language="en")
             utterance = " ".join(segment.text for segment in segments)
-
-            # Remove leading/trailing whitespace and punctuation added by Whisper
             utterance = utterance.strip().rstrip(".!?,;")
 
-            # Reject hallucinations
-            if utterance in hallucinations:
+            if utterance in _hallucinations:
                 continue
-
             if not utterance:
+                continue
+            if asr.is_muted():
+                print(f"  [speech suppressed (TTS active): '{utterance}']")
                 continue
 
             action_queue.put(utterance)
@@ -117,9 +99,7 @@ def recognize(audio_queue: Queue, action_queue: Queue) -> None:
 
         except Exception as error:
             print(f"  [speech] recognition error: {error}")
-
         finally:
-            # Mark the audio processing job as completed in the queue
             audio_queue.task_done()
 
 
@@ -129,30 +109,21 @@ def main():
         description="Speech-to-text interface for the self-screening health station"
     )
     parser.add_argument(
-        "-l",
-        "--list-microphones",
+        "-l", "--list-microphones",
         action="store_true",
         help="list all available microphones and exit",
     )
     parser.add_argument(
-        "-m",
-        "--microphone",
+        "-m", "--microphone",
         metavar="M",
         type=int,
-        help=(
-            "use the specified microphone (if unspecified, the default "
-            "microphone is used)"
-        ),
+        help="use the specified microphone (default: system default)",
     )
     parser.add_argument(
-        "-e",
-        "--energy-threshold",
+        "-e", "--energy-threshold",
         metavar="N",
         type=int,
-        help=(
-            "initial energy threshold for sounds (between 0 and 4000; "
-            "if unspecified, automatic calibration is performed)"
-        ),
+        help="initial energy threshold (0–4000; default: auto-calibrate)",
     )
     args = parser.parse_args()
 
@@ -170,7 +141,7 @@ def main():
     microphone = sr.Microphone(args.microphone)
     recognizer = sr.Recognizer()
     audio_queue = Queue()
-    output_queue = Queue()  # standalone: just print, don't route anywhere
+    output_queue = Queue()
 
     worker = Thread(target=recognize, args=(audio_queue, output_queue))
     worker.start()
