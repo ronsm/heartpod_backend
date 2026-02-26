@@ -42,11 +42,12 @@ PAGE_CONFIG = {
             "confirming whether they want to begin the health check "
             "(yes to start, no to decline)"
         ),
+        "location": "sink",
     },
     "welcome": {
         "page_id": "02",
         "message": (
-            "I'm Temi, your digital health assistant. I'll guide you step-by-step "
+            "I'm HeartPod, your digital health assistant. I'll guide you step-by-step "
             "through the self-screening process and provide you with a copy of your "
             "results to take away.\n\nBefore we start, please take a seat and make "
             "yourself comfortable. If you are wearing a jacket or coat, you can "
@@ -57,6 +58,7 @@ PAGE_CONFIG = {
             "Let me know if you wish to continue."
         ),
         "action_context": "confirming they consent to start the session",
+        "location": "dining",
     },
     "q1": {
         "page_id": "03",

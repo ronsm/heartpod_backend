@@ -1,6 +1,7 @@
 import argparse
 import os
 import threading
+import time
 from queue import Queue
 
 import tts
@@ -87,6 +88,11 @@ def main():
 
     input_thread = threading.Thread(target=_terminal_input_loop, daemon=True)
     input_thread.start()
+
+    # Give any already-open app clients time to detect the new server and reconnect
+    # before the first TTS broadcast fires. The Android app retries every 2 s,
+    # so 3 s is enough for a full reconnect cycle.
+    time.sleep(3)
 
     sensor_mode = "dummy" if args.dummy else "real"
     robot = HealthRobotGraph(sensor_mode=sensor_mode, use_printer=not args.no_printer)

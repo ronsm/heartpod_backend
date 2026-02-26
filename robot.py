@@ -55,44 +55,44 @@ class HealthRobotGraph:
         return state
 
     def _build_data(self, state: ConversationState) -> dict:
-        """Build the data payload for the current stage to send via GET /state."""
+        """Build the data payload for the current stage to send via WebSocket state message."""
         stage = state["current_stage"]
         r = state.get("readings", {})
 
         if stage == "idle":
-            return {}
+            data = {}
         elif stage == "welcome":
-            return {"message": state["robot_response"]}
+            data = {"message": state["robot_response"]}
         elif stage in ("q1", "q2", "q3"):
             cfg = PAGE_CONFIG[stage]
             question = cfg["message"].split("\n")[0]
-            return {"question": question, "options": json.dumps(cfg["options"])}
+            data = {"question": question, "options": json.dumps(cfg["options"])}
         elif stage == "measure_intro":
-            return {"message": state["robot_response"]}
+            data = {"message": state["robot_response"]}
         elif stage == "oximeter_intro":
-            return {"device": "oximeter", "video_id": PAGE_CONFIG["oximeter_intro"]["video_id"]}
+            data = {"device": "oximeter", "video_id": PAGE_CONFIG["oximeter_intro"]["video_id"]}
         elif stage == "oximeter_reading":
-            return {"message": state["robot_response"]}
+            data = {"message": state["robot_response"]}
         elif stage == "oximeter_done":
-            return {
+            data = {
                 "value": f"HR: {r.get('oximeter_hr', '?')} bpm  /  SpO2: {r.get('oximeter_spo2', '?')}%",
                 "unit": "",
             }
         elif stage == "bp_intro":
-            return {"device": "blood pressure monitor", "video_id": PAGE_CONFIG["bp_intro"]["video_id"]}
+            data = {"device": "blood pressure monitor", "video_id": PAGE_CONFIG["bp_intro"]["video_id"]}
         elif stage == "bp_reading":
-            return {"message": state["robot_response"]}
+            data = {"message": state["robot_response"]}
         elif stage == "bp_done":
-            return {"value": r.get("bp", "?"), "unit": "mmHg"}
+            data = {"value": r.get("bp", "?"), "unit": "mmHg"}
         elif stage == "scale_intro":
-            return {"device": "scale", "video_id": PAGE_CONFIG["scale_intro"]["video_id"]}
+            data = {"device": "scale", "video_id": PAGE_CONFIG["scale_intro"]["video_id"]}
         elif stage == "scale_reading":
-            return {"message": state["robot_response"]}
+            data = {"message": state["robot_response"]}
         elif stage == "scale_done":
-            return {"value": str(r.get("scale", "?")), "unit": "kg"}
+            data = {"value": str(r.get("scale", "?")), "unit": "kg"}
         elif stage == "recap":
             a = state["answers"]
-            return {
+            data = {
                 "q1": a.get("q1", "not answered"),
                 "q2": a.get("q2", "not answered"),
                 "q3": a.get("q3", "not answered"),
@@ -101,9 +101,16 @@ class HealthRobotGraph:
                 "weight": f"{r.get('scale', '?')} kg",
             }
         elif stage == "sorry":
-            return {"message": state["robot_response"]}
+            data = {"message": state["robot_response"]}
         else:
-            return {}
+            data = {}
+
+        # Attach optional Temi navigation target — set "location" in PAGE_CONFIG to use.
+        location = PAGE_CONFIG.get(stage, {}).get("location", "")
+        if location:
+            data["location"] = location
+
+        return data
 
     def _simple_node(self, stage: str):
         """Factory: returns a node function that just displays PAGE_CONFIG text."""
