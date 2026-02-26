@@ -10,7 +10,7 @@ heartpod_backend/
 ├── config.py            ← All static strings and constants (edit messages here)
 ├── state.py             ← ConversationState TypedDict
 ├── ws_server.py         ← WebSocket server: pushes state to the app, receives actions
-├── tts.py               ← Text-to-speech engine (local or temi mode)
+├── tts.py               ← Text-to-speech engine (none / local / temi mode)
 ├── robot.py             ← HealthRobotGraph – nodes, graph wiring, run loop
 ├── device.py            ← device_queue and simulate_reading() (swap for real hardware)
 ├── llm_helpers.py       ← LLMHelper class – all LLM prompts live here
@@ -108,6 +108,8 @@ The `--tts` flag selects the TTS mode:
 
 The text spoken is exactly what the robot prints to the terminal at each step of the conversation. Speech runs in a background thread and is interrupted immediately when the user acts or a new utterance starts.
 
+In both `local` and `temi` modes, **the Android app's input buttons are locked for the duration of every TTS utterance** so the user cannot tap buttons while the robot is speaking.
+
 ### Setting up local TTS
 
 `local` mode uses the `piper-tts` Python package with the **en_GB-alba-medium** voice. After installing dependencies, download the voice model (≈65 MB):
@@ -127,9 +129,15 @@ The backend runs a WebSocket server (default port 8000). The Android app connect
 {"type": "state", "page_id": 1, "data": {"message": "...", ...}}
 ```
 
-**Backend → app** — TTS (temi mode only), robot speech forwarded to the Temi Android app:
+**Backend → app** — TTS utterance (temi mode only), forwarded to the Temi robot to speak:
 ```json
 {"type": "tts", "text": "Hello, welcome to the health check pod."}
+```
+
+**Backend → app** — TTS active flag (local mode), locks/unlocks input buttons on the display:
+```json
+{"type": "tts_active", "active": true}
+{"type": "tts_active", "active": false}
 ```
 
 **App → backend** — button/action events:
@@ -137,13 +145,13 @@ The backend runs a WebSocket server (default port 8000). The Android app connect
 {"type": "action", "action": "start", "data": {}}
 ```
 
-**App → backend** — TTS status (temi mode), sent by the frontend when Temi starts and stops speaking:
+**App → backend** — TTS status (temi mode only), sent by the app when Temi starts/stops speaking:
 ```json
 {"type": "tts_status", "status": "start"}
 {"type": "tts_status", "status": "stop"}
 ```
 
-These messages mute and unmute the ASR pipeline so the microphone does not hear the robot speaking. See the [ASR Muting](#asr-muting) section below.
+The `tts_status=stop` event triggers the ASR unmute (after `ASR_UNMUTE_DELAY`). A fallback timer in `tts.py` handles unmuting if the event is never received (e.g. on emulator). `tts_status=start` is logged but has no effect since the ASR is already muted by the time it arrives.
 
 ## Speech-to-Text (`listen.py`)
 
@@ -159,11 +167,11 @@ python listen.py --microphone 2 --energy-threshold 300
 
 ## ASR Muting
 
-To prevent the microphone from picking up the robot's own voice, the ASR pipeline (`listen.py`) is muted for the duration of every TTS utterance plus a configurable buffer (default **1.0 s**) to let any audio already captured drain through Whisper before the pipeline reopens. The buffer is set by `ASR_UNMUTE_DELAY` in `tts.py` — increase it if the ASR still occasionally hears the robot.
+To prevent the microphone from picking up the robot's own voice, the ASR pipeline is muted for the duration of every TTS utterance plus a configurable buffer (default **1.0 s**) to let any audio already captured drain through Whisper before the pipeline reopens. The buffer is set by `ASR_UNMUTE_DELAY` in `tts.py`.
 
-**Local TTS** (`--tts local`): muting is driven entirely by the backend. `tts.speak()` mutes immediately; the playback thread unmutes after the audio finishes plus the buffer. A sequence guard ensures that a thread interrupted by `stop()` cannot unmute while a newer utterance is already playing.
+**Local TTS** (`--tts local`): muting is driven entirely by the backend. `tts.speak()` mutes immediately and broadcasts `tts_active=true` to lock the app's buttons; the playback thread unmutes and broadcasts `tts_active=false` when audio finishes. A sequence guard ensures that a thread interrupted by `stop()` cannot unmute while a newer utterance is already playing.
 
-**Temi TTS** (`--tts temi`): the backend mutes when it sends the TTS WebSocket message and starts a fallback timer to unmute after an estimated playback duration. Once the Android app implements TTS status callbacks, it should send `{"type": "tts_status", "status": "stop"}` when Temi finishes speaking — `ws_server.py` already handles this message and will unmute (after `ASR_UNMUTE_DELAY`) instead of relying on the estimate.
+**Temi TTS** (`--tts temi`): the backend mutes when it sends the TTS WebSocket message. The app locks its buttons on receipt of the `tts` message, then sends `tts_status=stop` when Temi finishes speaking, which triggers the backend unmute. A fallback timer also broadcasts `tts_active=false` (unlocking the app) after an estimated playback duration, acting as a safety net when running without real Temi hardware.
 
 ## Key Design Decisions
 

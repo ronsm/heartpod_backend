@@ -114,7 +114,8 @@ def recognize(audio_queue: Queue, action_queue: Queue) -> None:
             raw = audio.get_raw_data(convert_rate=16000, convert_width=2)
             audio_np = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
 
-            segments, _ = model.transcribe(audio_np, language="en")
+            with np.errstate(divide="ignore", over="ignore", invalid="ignore"):
+                segments, _ = model.transcribe(audio_np, language="en")
             utterance = " ".join(segment.text for segment in segments)
 
             # Remove leading/trailing whitespace and punctuation added by Whisper
