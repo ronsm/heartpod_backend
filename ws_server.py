@@ -66,8 +66,29 @@ async def _handler(websocket: WebSocketServerProtocol):
                 msg = json.loads(raw)
             except json.JSONDecodeError:
                 continue
+            msg_type = msg.get("type", "action")
             action = msg.get("action", "")
             data = msg.get("data", {})
+
+            # tts_status: sent by the frontend when Temi starts/stops speaking.
+            # Mutes/unmutes the ASR pipeline so the mic doesn't hear the robot.
+            if msg_type == "tts_status":
+                status = msg.get("status", "")
+                if status == "start":
+                    print("\n  [app] tts_status=start — (ASR already muted by tts.py)")
+                elif status == "stop":
+                    # Short delay lets any audio captured during playback drain
+                    # through Whisper before the ASR pipeline reopens.
+                    def _delayed_unmute():
+                        import time
+                        import listen as _listen
+                        import tts
+                        time.sleep(tts.ASR_UNMUTE_DELAY)
+                        _listen.unmute()
+                    threading.Thread(target=_delayed_unmute, daemon=True).start()
+                    print("\n  [app] tts_status=stop — ASR unmuting in 0.5 s")
+                continue
+
             if action == "reset":
                 reset_event.set()
                 print("\n  [app] reset requested")
@@ -122,6 +143,13 @@ def broadcast_tts(text: str):
     """Send a TTS message to all connected clients (temi mode)."""
     if _loop and _loop.is_running():
         msg = json.dumps({"type": "tts", "text": text})
+        asyncio.run_coroutine_threadsafe(_broadcast(msg), _loop)
+
+
+def broadcast_tts_active(active: bool):
+    """Notify clients that local TTS playback is starting (True) or finished (False)."""
+    if _loop and _loop.is_running():
+        msg = json.dumps({"type": "tts_active", "active": active})
         asyncio.run_coroutine_threadsafe(_broadcast(msg), _loop)
 
 

@@ -77,6 +77,7 @@ python main.py [OPTIONS]
 | `--no-printer` | Disable the thermal receipt printer |
 | `--no-listen` | Disable the speech-to-text listener |
 | `--tts {none,local,temi}` | Text-to-speech mode (default: `none`) |
+| `--microphone N` | Microphone device index (run `python listen.py --list-microphones` to list options; defaults to the system default input device) |
 | `--port PORT` | Port for the WebSocket server (default: `8000`) |
 
 **Examples:**
@@ -85,8 +86,11 @@ python main.py [OPTIONS]
 # Full production run (real sensors + printer, Temi TTS)
 python main.py --tts temi
 
-# Development / demo run (simulated sensors, local TTS via speakers)
-python main.py --dummy --no-printer --no-listen --tts local
+# Development / demo run (simulated sensors, local TTS, local microphone)
+python main.py --dummy --no-printer --tts local
+
+# Same but force a specific microphone (useful if the default input is wrong)
+python main.py --dummy --no-printer --tts local --microphone 1
 
 # Real sensors, no printer, custom port, silent
 python main.py --no-printer --port 8080
@@ -99,7 +103,7 @@ The `--tts` flag selects the TTS mode:
 | Mode | Description |
 |------|-------------|
 | `none` | Silent – no speech output (default) |
-| `local` | Speaks through the backend machine's audio output using [Piper TTS](https://github.com/rhasspy/piper) with the **alba** voice (cross-platform: macOS and Linux) |
+| `local` | Speaks through the backend machine's audio output using [Piper TTS](https://github.com/rhasspy/piper) with the **alba** voice (macOS: `afplay`; Linux: `aplay`) |
 | `temi` | Sends `{"type": "tts", "text": "..."}` WebSocket messages to the Android app for the Temi robot to speak |
 
 The text spoken is exactly what the robot prints to the terminal at each step of the conversation. Speech runs in a background thread and is interrupted immediately when the user acts or a new utterance starts.
@@ -133,6 +137,14 @@ The backend runs a WebSocket server (default port 8000). The Android app connect
 {"type": "action", "action": "start", "data": {}}
 ```
 
+**App → backend** — TTS status (temi mode), sent by the frontend when Temi starts and stops speaking:
+```json
+{"type": "tts_status", "status": "start"}
+{"type": "tts_status", "status": "stop"}
+```
+
+These messages mute and unmute the ASR pipeline so the microphone does not hear the robot speaking. See the [ASR Muting](#asr-muting) section below.
+
 ## Speech-to-Text (`listen.py`)
 
 `listen.py` runs as two daemon threads inside the main process — one captures microphone audio, the other transcribes it with Whisper and pushes the result directly onto `action_queue`. It can also be run standalone for microphone testing:
@@ -144,6 +156,14 @@ python listen.py --list-microphones
 # Use a specific microphone with a fixed energy threshold
 python listen.py --microphone 2 --energy-threshold 300
 ```
+
+## ASR Muting
+
+To prevent the microphone from picking up the robot's own voice, the ASR pipeline (`listen.py`) is muted for the duration of every TTS utterance plus a configurable buffer (default **1.0 s**) to let any audio already captured drain through Whisper before the pipeline reopens. The buffer is set by `ASR_UNMUTE_DELAY` in `tts.py` — increase it if the ASR still occasionally hears the robot.
+
+**Local TTS** (`--tts local`): muting is driven entirely by the backend. `tts.speak()` mutes immediately; the playback thread unmutes after the audio finishes plus the buffer. A sequence guard ensures that a thread interrupted by `stop()` cannot unmute while a newer utterance is already playing.
+
+**Temi TTS** (`--tts temi`): the backend mutes when it sends the TTS WebSocket message and starts a fallback timer to unmute after an estimated playback duration. Once the Android app implements TTS status callbacks, it should send `{"type": "tts_status", "status": "stop"}` when Temi finishes speaking — `ws_server.py` already handles this message and will unmute (after `ASR_UNMUTE_DELAY`) instead of relying on the estimate.
 
 ## Key Design Decisions
 

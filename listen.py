@@ -1,6 +1,6 @@
 import argparse
 from queue import Queue
-from threading import Thread
+from threading import Event, Thread
 from typing import Optional
 
 import numpy as np
@@ -9,6 +9,21 @@ import numpy as np
 import sounddevice
 import speech_recognition as sr
 from faster_whisper import WhisperModel
+
+
+_muted = Event()
+
+
+def mute() -> None:
+    """Suppress ASR output (called while TTS is playing)."""
+    _muted.set()
+    print("  [ASR: muted]")
+
+
+def unmute() -> None:
+    """Resume ASR output."""
+    _muted.clear()
+    print("  [ASR: listening — speak now]")
 
 
 def listen(
@@ -110,6 +125,10 @@ def recognize(audio_queue: Queue, action_queue: Queue) -> None:
                 continue
 
             if not utterance:
+                continue
+
+            if _muted.is_set():
+                print(f"  [speech suppressed (TTS active): '{utterance}']")
                 continue
 
             action_queue.put(utterance)
