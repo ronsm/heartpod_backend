@@ -48,11 +48,12 @@ PAGE_CONFIG = {
         "message": (
             "I'm Temi, your digital health assistant. I'll guide you step-by-step "
             "through the self-screening process and provide you with a copy of your "
-            "results to take away. Before we start, please take a seat and make "
+            "results to take away.\n\nBefore we start, please take a seat and make "
             "yourself comfortable. If you are wearing a jacket or coat, you can "
-            "remove it now - it will make the process easier. I will ask a few "
+            "remove it now, as it will make the process easier.\n\nI will ask a few "
             "general lifestyle questions to give the clinical team some background. "
-            "You can choose to skip any question, if you wish. "
+            "You can choose to skip any question, if you wish.\n\n"
+            "Throughout the session, you can interact by speaking to me or by tapping the touchscreen — whichever you prefer.\n\n"
             "Let me know if you wish to continue."
         ),
         "action_context": "confirming they consent to start the session",
@@ -74,6 +75,7 @@ PAGE_CONFIG = {
             "A few times a day",
             "Many times per day",
         ],
+        "speech": "How often do you smoke? You can say your answer, tap it on screen, or say skip to move on.",
         "action_context": "answering a question about their smoking frequency",
     },
     "q2": {
@@ -93,6 +95,7 @@ PAGE_CONFIG = {
             "Often (3-4 times a week)",
             "Daily",
         ],
+        "speech": "How often do you exercise? You can say your answer, tap it on screen, or say skip to move on.",
         "action_context": "answering a question about their exercise frequency",
     },
     "q3": {
@@ -112,6 +115,7 @@ PAGE_CONFIG = {
             "15-21 units",
             "More than 21 units",
         ],
+        "speech": "How many units of alcohol do you drink per week? You can say your answer, tap it on screen, or say skip to move on.",
         "action_context": "answering a question about their weekly alcohol consumption",
     },
     "measure_intro": {
@@ -120,19 +124,15 @@ PAGE_CONFIG = {
             "Great, thank you for answering those questions! "
             "Now we'll take three quick measurements: an oximeter reading, "
             "a blood pressure reading, and your weight. "
-            "Just say 'continue' when you're happy to begin."
+            "Just say 'continue' or press the button when you're happy to begin."
         ),
         "action_context": "confirming they are ready to start the measurements",
     },
     "oximeter_intro": {
         "page_id": "07",
-        "message": (
-            "Remain seated, and breathe comfortably. Now, place your index finger "
-            "inside the oximeter, with your fingernail facing upwards towards the "
-            "ceiling. Keep your hand resting on the table. "
-            "Say 'ready' when it's in place."
-        ),
+        "message": "Please watch the short video on screen for instructions on using the oximeter. Say 'ready' or press the button when it's in place.",
         "action_context": "confirming the oximeter is clipped onto their finger",
+        "video_id": "eEzD-Y97ges",
     },
     "oximeter_reading": {
         "page_id": "08",
@@ -144,18 +144,15 @@ PAGE_CONFIG = {
         "message": (
             "Great. Thank you! I've recorded your blood oxygen and heart rate "
             "information. Next, we will measure your blood pressure. "
-            "Say 'continue' when you're ready for the next measurement."
+            "Say 'continue' or press the button when you're ready for the next measurement."
         ),
         "action_context": "confirming they are ready to continue to blood pressure",
     },
     "bp_intro": {
         "page_id": "10",
-        "message": (
-            "Next, we'll measure your blood pressure. Please put on the blood "
-            "pressure cuff and sit comfortably with your arm resting at heart level. "
-            "Say 'ready' when set."
-        ),
+        "message": "Please watch the short video on screen for instructions on putting on the blood pressure cuff. Say 'ready' or press the button when you're set.",
         "action_context": "confirming the blood pressure cuff is on and they are ready",
+        "video_id": "eEzD-Y97ges",
     },
     "bp_reading": {
         "page_id": "11",
@@ -167,19 +164,15 @@ PAGE_CONFIG = {
         "message": (
             "Great. Thank you! I've recorded your blood pressure. "
             "Next, we will measure your weight. "
-            "Say 'continue' when you're ready for the final measurement."
+            "Say 'continue' or press the button when you're ready for the final measurement."
         ),
         "action_context": "confirming they are ready to continue to the scale",
     },
     "scale_intro": {
         "page_id": "13",
-        "message": (
-            "Finally, we'll measure your weight. Please step onto the scale, "
-            "which is over here on your [left/right]. Once you are on the scale, "
-            "stand straight and as still as possible. "
-            "Say 'ready' when you're on the scale."
-        ),
+        "message": "Please watch the short video on screen for instructions on using the scale. Say 'ready' or press the button when you're standing on it.",
         "action_context": "confirming they are standing on the scale",
+        "video_id": "eEzD-Y97ges",
     },
     "scale_reading": {
         "page_id": "14",
@@ -191,7 +184,7 @@ PAGE_CONFIG = {
         "message": (
             "Great. Thank you! I've recorded your weight. "
             "You can now step off the scale and sit back down. "
-            "Say 'continue' to see your summary."
+            "Say 'continue' or press the button to see your summary."
         ),
         "action_context": "confirming they are ready to see the recap",
     },
@@ -199,8 +192,7 @@ PAGE_CONFIG = {
         "page_id": "16",
         "message": (
             "We have now completed all the measurements. Your results are shown "
-            "on my screen. Please wait a moment while I also print you a paper "
-            "copy to take away."
+            "on my screen. I have printed a paper copy for you to take away."
         ),
         "action_context": "reviewing their health check summary",
     },

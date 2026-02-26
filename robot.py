@@ -70,7 +70,7 @@ class HealthRobotGraph:
         elif stage == "measure_intro":
             return {"message": state["robot_response"]}
         elif stage == "oximeter_intro":
-            return {"device": "oximeter"}
+            return {"device": "oximeter", "video_id": PAGE_CONFIG["oximeter_intro"]["video_id"]}
         elif stage == "oximeter_reading":
             return {"message": state["robot_response"]}
         elif stage == "oximeter_done":
@@ -79,13 +79,13 @@ class HealthRobotGraph:
                 "unit": "",
             }
         elif stage == "bp_intro":
-            return {"device": "blood pressure monitor"}
+            return {"device": "blood pressure monitor", "video_id": PAGE_CONFIG["bp_intro"]["video_id"]}
         elif stage == "bp_reading":
             return {"message": state["robot_response"]}
         elif stage == "bp_done":
             return {"value": r.get("bp", "?"), "unit": "mmHg"}
         elif stage == "scale_intro":
-            return {"device": "scale"}
+            return {"device": "scale", "video_id": PAGE_CONFIG["scale_intro"]["video_id"]}
         elif stage == "scale_reading":
             return {"message": state["robot_response"]}
         elif stage == "scale_done":
@@ -109,7 +109,8 @@ class HealthRobotGraph:
         """Factory: returns a node function that just displays PAGE_CONFIG text."""
 
         def node(state: ConversationState) -> ConversationState:
-            return self._set_page(state, stage, PAGE_CONFIG[stage]["message"])
+            cfg = PAGE_CONFIG[stage]
+            return self._set_page(state, stage, cfg.get("speech", cfg["message"]))
 
         node.__name__ = f"{stage}_node"
         return node
@@ -131,27 +132,28 @@ class HealthRobotGraph:
     # Nodes that embed live readings in their message
     def oximeter_done_node(self, state: ConversationState) -> ConversationState:
         r = state["readings"]
-        msg = (
-            f"{PAGE_CONFIG['oximeter_done']['message']}\n"
-            f"  Heart Rate: {r.get('oximeter_hr', '?')} bpm\n"
-            f"  SpO2:       {r.get('oximeter_spo2', '?')}%"
+        reading = (
+            f"Your heart rate is {r.get('oximeter_hr', '?')} beats per minute, "
+            f"and your blood oxygen level is {r.get('oximeter_spo2', '?')} percent. "
         )
+        msg = reading + PAGE_CONFIG["oximeter_done"]["message"]
         return self._set_page(state, "oximeter_done", msg)
 
     def bp_done_node(self, state: ConversationState) -> ConversationState:
         r = state["readings"]
-        msg = (
-            f"{PAGE_CONFIG['bp_done']['message']}\n"
-            f"  Blood Pressure: {r.get('bp', '?')} mmHg"
-        )
+        bp = r.get("bp", "?/?")
+        try:
+            systolic, diastolic = str(bp).split("/")
+            reading = f"Your blood pressure is {systolic.strip()} over {diastolic.strip()}. "
+        except ValueError:
+            reading = f"Your blood pressure is {bp}. "
+        msg = reading + PAGE_CONFIG["bp_done"]["message"]
         return self._set_page(state, "bp_done", msg)
 
     def scale_done_node(self, state: ConversationState) -> ConversationState:
         r = state["readings"]
-        msg = (
-            f"{PAGE_CONFIG['scale_done']['message']}\n"
-            f"  Weight: {r.get('scale', '?')} kg"
-        )
+        reading = f"Your weight is {r.get('scale', '?')} kilograms. "
+        msg = reading + PAGE_CONFIG["scale_done"]["message"]
         return self._set_page(state, "scale_done", msg)
 
     def recap_node(self, state: ConversationState) -> ConversationState:
