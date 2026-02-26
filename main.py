@@ -56,6 +56,26 @@ def main():
             "'temi' (send to the Android app via WebSocket) (default: none)"
         ),
     )
+    parser.add_argument(
+        "--audio-device",
+        metavar="DEVICE",
+        default=None,
+        help=(
+            "ALSA device for TTS playback on Linux (e.g. 'plughw:CARD=ReSpeakerMicArr,DEV=0'). "
+            "Route audio through the ReSpeaker so its hardware AEC receives the playback reference."
+        ),
+    )
+    parser.add_argument(
+        "--microphone",
+        metavar="N",
+        type=int,
+        default=None,
+        help=(
+            "Microphone device index for speech recognition "
+            "(run 'python listen.py --list-microphones' to list options). "
+            "Use the ReSpeaker index so ASR reads its AEC-processed audio stream."
+        ),
+    )
     args = parser.parse_args()
 
     if not os.getenv("OPENAI_API_KEY"):
@@ -63,7 +83,7 @@ def main():
         print("Set it with: export OPENAI_API_KEY='your-key-here'")
         return
 
-    tts.init(args.tts)
+    tts.init(args.tts, alsa_device=args.audio_device)
     server = start_ws_server(args.port)
     print(f"WebSocket server listening on port {args.port}")
     print(f"  ws://0.0.0.0:{args.port}  – state push and action receive")
@@ -71,7 +91,7 @@ def main():
 
     if not args.no_listen:
         import speech_recognition as sr
-        microphone = sr.Microphone()
+        microphone = sr.Microphone(device_index=args.microphone)
         recognizer = sr.Recognizer()
         audio_queue = Queue()
         threading.Thread(target=listen, args=(recognizer, audio_queue, microphone), daemon=True).start()

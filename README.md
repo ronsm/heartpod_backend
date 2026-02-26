@@ -78,6 +78,8 @@ python main.py [OPTIONS]
 | `--no-listen` | Disable the speech-to-text listener |
 | `--tts {none,local,temi}` | Text-to-speech mode (default: `none`) |
 | `--port PORT` | Port for the WebSocket server (default: `8000`) |
+| `--audio-device DEVICE` | ALSA device for TTS playback on Linux (see ReSpeaker section below) |
+| `--microphone N` | Microphone device index for speech recognition (see ReSpeaker section below) |
 
 **Examples:**
 
@@ -90,6 +92,9 @@ python main.py --dummy --no-printer --no-listen --tts local
 
 # Real sensors, no printer, custom port, silent
 python main.py --no-printer --port 8080
+
+# With ReSpeaker hardware AEC (see ReSpeaker section below)
+python main.py --tts local --audio-device plughw:CARD=ReSpeakerMicArr,DEV=0 --microphone 2
 ```
 
 ## Text-to-Speech
@@ -132,6 +137,43 @@ The backend runs a WebSocket server (default port 8000). The Android app connect
 ```json
 {"type": "action", "action": "start", "data": {}}
 ```
+
+## ReSpeaker Mic Array v2.0 (Hardware AEC)
+
+The system supports the [Seeed Studio ReSpeaker Mic Array v2.0](https://wiki.seeedstudio.com/ReSpeaker_Mic_Array_v2.0/), which has an **XMOS XVF-3000** chip with hardware Acoustic Echo Cancellation (AEC), noise suppression, and beamforming built in.
+
+When audio is played back **through the ReSpeaker's USB audio output**, the chip uses that signal as a reference and removes it from the microphone capture automatically — meaning the ASR will not hear the robot speaking, but will still hear the user even if they speak at the same time.
+
+### Requirements
+
+- The speaker must be connected to the ReSpeaker's 3.5mm audio jack (not a separate sound card).
+- TTS playback must be routed to the ReSpeaker's ALSA device (`--audio-device`).
+- ASR capture must read from the ReSpeaker's microphone device index (`--microphone`).
+
+### Setup
+
+**1. Find the ALSA device name for playback:**
+```bash
+aplay -l
+```
+Look for an entry like `ReSpeakerMicArr` or `seeed-voicecard`. Note the card name.
+
+**2. Find the microphone device index:**
+```bash
+python listen.py --list-microphones
+```
+Look for the ReSpeaker entry and note its index.
+
+**3. Run with both flags:**
+```bash
+python main.py --tts local \
+               --audio-device plughw:CARD=ReSpeakerMicArr,DEV=0 \
+               --microphone 2
+```
+
+Replace `ReSpeakerMicArr` and `2` with the values found in steps 1 and 2. The `plughw:` prefix (rather than `hw:`) lets ALSA handle sample rate conversion automatically.
+
+> **Note:** The `--audio-device` flag only affects Linux (`aplay`). On macOS, `afplay` is used and audio routing follows the system default output.
 
 ## Speech-to-Text (`listen.py`)
 

@@ -33,14 +33,16 @@ _seq_lock = threading.Lock()
 _current_seq: int = 0   # incremented on every stop(); threads bail if stale
 _proc_lock = threading.Lock()
 _current_proc = None    # current aplay/afplay subprocess
+_alsa_device: str = None  # ALSA device for Linux playback (e.g. ReSpeaker)
 
 _VOICES_DIR = os.path.join(os.path.dirname(__file__), "voices")
 _PIPER_MODEL = os.path.join(_VOICES_DIR, "en_GB-alba-medium.onnx")
 
 
-def init(mode: str) -> None:
+def init(mode: str, alsa_device: str = None) -> None:
     """Validate mode and load resources. Call once before speak()."""
-    global _mode, _voice
+    global _mode, _voice, _alsa_device
+    _alsa_device = alsa_device
     if mode == "local":
         if not os.path.isfile(_PIPER_MODEL):
             print(f"  [TTS: local unavailable — voice model not found: {_PIPER_MODEL}]")
@@ -51,7 +53,8 @@ def init(mode: str) -> None:
             from piper.voice import PiperVoice
             _voice = PiperVoice.load(_PIPER_MODEL)
             _mode = "local"
-            print(f"  [TTS: local (piper-tts, alba voice, {_voice.config.sample_rate} Hz)]")
+            device_info = f", ALSA device: {_alsa_device}" if _alsa_device else ""
+            print(f"  [TTS: local (piper-tts, alba voice, {_voice.config.sample_rate} Hz{device_info})]")
         except ImportError:
             print("  [TTS: local unavailable — run `pip install piper-tts`]")
             _mode = "none"
@@ -131,8 +134,13 @@ def _speak_local(text: str, seq: int) -> None:
         # macOS: afplay reads from stdin with -f WAVE
         cmd = ["afplay", "-"]
     else:
-        # Linux: aplay reads WAV from stdin; -q suppresses ALSA noise
-        cmd = ["aplay", "-q", "-"]
+        # Linux: aplay reads WAV from stdin; -q suppresses ALSA noise.
+        # If an ALSA device is specified (e.g. ReSpeaker), route there so the
+        # hardware AEC chip receives the playback reference signal.
+        cmd = ["aplay", "-q"]
+        if _alsa_device:
+            cmd += ["-D", _alsa_device]
+        cmd += ["-"]
 
     try:
         proc = subprocess.Popen(
