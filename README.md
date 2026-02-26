@@ -9,12 +9,13 @@ heartpod_backend/
 ├── main.py              ← Entry point: python main.py
 ├── config.py            ← All static strings and constants (edit messages here)
 ├── state.py             ← ConversationState TypedDict
+├── asr.py               ← ASR mute/unmute state (shared by tts.py and ws_server.py)
 ├── ws_server.py         ← WebSocket server: pushes state to the app, receives actions
 ├── tts.py               ← Text-to-speech engine (none / local / temi mode)
 ├── robot.py             ← HealthRobotGraph – nodes, graph wiring, run loop
 ├── device.py            ← device_queue and simulate_reading() (swap for real hardware)
 ├── llm_helpers.py       ← LLMHelper class – all LLM prompts live here
-├── listen.py            ← Speech-to-text subprocess (Whisper + SpeechRecognition)
+├── listen.py            ← Speech-to-text (Whisper + SpeechRecognition)
 ├── print_utility.py     ← PrintUtility – thermal receipt printer (Epson USB)
 ├── download_voice.py    ← Downloads the Piper TTS alba voice model into ./voices/
 └── sensors/
@@ -151,7 +152,7 @@ The backend runs a WebSocket server (default port 8000). The Android app connect
 {"type": "tts_status", "status": "stop"}
 ```
 
-The `tts_status=stop` event triggers the ASR unmute (after `ASR_UNMUTE_DELAY`). A fallback timer in `tts.py` handles unmuting if the event is never received (e.g. on emulator). `tts_status=start` is logged but has no effect since the ASR is already muted by the time it arrives.
+The `tts_status=stop` event triggers the ASR unmute (after `ASR_UNMUTE_DELAY`). A fallback timer in `tts.py` handles unmuting if the event is never received (e.g. on emulator). `tts_status=start` is logged but has no other effect since the ASR is already muted by the time it arrives.
 
 ## Speech-to-Text (`listen.py`)
 
@@ -167,7 +168,7 @@ python listen.py --microphone 2 --energy-threshold 300
 
 ## ASR Muting
 
-To prevent the microphone from picking up the robot's own voice, the ASR pipeline is muted for the duration of every TTS utterance plus a configurable buffer (default **1.0 s**) to let any audio already captured drain through Whisper before the pipeline reopens. The buffer is set by `ASR_UNMUTE_DELAY` in `tts.py`.
+To prevent the microphone from picking up the robot's own voice, the ASR pipeline is muted for the duration of every TTS utterance plus a configurable buffer (default **1.0 s**) to let any audio already captured drain through Whisper before the pipeline reopens. The buffer is set by `ASR_UNMUTE_DELAY` in `config.py`.
 
 **Local TTS** (`--tts local`): muting is driven entirely by the backend. `tts.speak()` mutes immediately and broadcasts `tts_active=true` to lock the app's buttons; the playback thread unmutes and broadcasts `tts_active=false` when audio finishes. A sequence guard ensures that a thread interrupted by `stop()` cannot unmute while a newer utterance is already playing.
 
@@ -177,7 +178,7 @@ To prevent the microphone from picking up the robot's own voice, the ASR pipelin
 
 - **All dialogue strings live in `config.py`** (`PAGE_CONFIG`). Edit messages there – do not hardcode strings elsewhere.
 - **Questionnaire questions (Q1/Q2/Q3)** re-prompt inline on invalid input; they never trigger the sorry page. Any question can be skipped (recorded as `"skipped"`).
-- **The sorry page is triggered by device timeouts only**, not by user confusion or invalid input. Off-topic questions at any state are handled gracefully by `LLMHelper.handle_general_question()`, which answers then re-prompts within the same state.
+- **The sorry page is triggered by device timeouts only**, not by user confusion or invalid input. Off-topic or unclear responses at any confirmation step are handled by `LLMHelper.evaluate_proceed()`, which generates a helpful reply and re-prompts within the same state.
 - **Device readings** block on a queue (`device_queue.get(timeout=30)`). For demo purposes, `simulate_reading()` in `device.py` auto-fires a fake reading. Remove that call in `robot.py` when connecting real hardware.
 
 ## Configuration (`config.py`)
@@ -187,4 +188,4 @@ To prevent the microphone from picking up the robot's own voice, the ASR pipelin
 | `READING_TIMEOUT` | 30s | Seconds before a device reading times out |
 | `MAX_RETRIES` | 3 | Consecutive sorry-retries before returning to idle |
 | `LLM_MODEL` | `gpt-4o-mini` | OpenAI model used for intent detection |
-| `LLM_TEMPERATURE` | 0.7 | LLM temperature |
+| `LLM_TEMPERATURE` | 0.0 | LLM temperature (0.0 = deterministic) |

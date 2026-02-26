@@ -27,7 +27,7 @@ STABLE_FRAMES_REQUIRED = 1
 MAX_ATTEMPTS = 3
 
 
-def parse_oximeter_frame(data: bytearray):
+def _parse_oximeter_frame(data: bytearray):
     """
     Parse a raw BLE notification from the Holfenry JKS50CL.
 
@@ -53,7 +53,7 @@ def parse_oximeter_frame(data: bytearray):
     return {"spo2": spo2, "pulse": pulse}
 
 
-async def find_device():
+async def _find_device():
     """Scan and return the BLEDevice object (not just the address)."""
     if DEVICE_ADDRESS:
         # When address is hardcoded, still return a proper BLEDevice via a targeted scan
@@ -73,7 +73,7 @@ async def find_device():
 async def get_reading():
     """Connect to the oximeter and return {"spo2": int, "pulse": int}, or None on failure."""
     print("Press the ON button on the oximeter and place your finger inside it.")
-    device = await find_device()
+    device = await _find_device()
     if not device:
         print(
             f"Could not find the oximeter. "
@@ -108,7 +108,7 @@ async def get_reading():
                 def handler(_sender, data: bytearray):
                     if result[0] is not None:
                         return
-                    reading = parse_oximeter_frame(data)
+                    reading = _parse_oximeter_frame(data)
                     if reading is None:
                         stable_count[0] = 0
                         last_reading[0] = None

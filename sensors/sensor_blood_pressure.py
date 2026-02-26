@@ -14,7 +14,7 @@ OMRON_WRITE_CHAR_UUID    = "db5b55e0-aee7-11e1-965e-0002a5d5c51b"
 MAX_ATTEMPTS = 3
 
 
-def sfloat_to_float(sfloat_val):
+def _sfloat_to_float(sfloat_val):
     exponent = sfloat_val >> 12
     mantissa = sfloat_val & 0x0FFF
     if exponent >= 8: exponent = -((0x000F + 1) - exponent)
@@ -58,8 +58,8 @@ async def get_reading():
                 def handler(_sender, data: bytearray):
                     if result[0] is not None:
                         return
-                    systolic  = round(sfloat_to_float(int.from_bytes(data[1:3], "little")), 1)
-                    diastolic = round(sfloat_to_float(int.from_bytes(data[3:5], "little")), 1)
+                    systolic  = round(_sfloat_to_float(int.from_bytes(data[1:3], "little")), 1)
+                    diastolic = round(_sfloat_to_float(int.from_bytes(data[3:5], "little")), 1)
                     print(f"  Systolic={systolic}, Diastolic={diastolic} mmHg")
                     result[0] = {"systolic": systolic, "diastolic": diastolic}
                     done.set()

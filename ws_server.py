@@ -21,6 +21,9 @@ from typing import Optional, Set
 import websockets
 from websockets.server import WebSocketServerProtocol
 
+import asr
+from config import ASR_UNMUTE_DELAY
+
 DEFAULT_PORT = 8000
 
 # Last-known state — sent immediately to any newly connected client.
@@ -59,7 +62,6 @@ async def _handler(websocket: WebSocketServerProtocol):
     """Handle a single WebSocket connection."""
     _clients.add(websocket)
     try:
-        # Send the current state immediately so the client is in sync.
         await websocket.send(json.dumps({"type": "state", **_ws_state}))
         async for raw in websocket:
             try:
@@ -71,29 +73,24 @@ async def _handler(websocket: WebSocketServerProtocol):
             data = msg.get("data", {})
 
             # tts_status: sent by the frontend when Temi starts/stops speaking.
-            # Mutes/unmutes the ASR pipeline so the mic doesn't hear the robot.
             if msg_type == "tts_status":
                 status = msg.get("status", "")
                 if status == "start":
                     print("\n  [app] tts_status=start — (ASR already muted by tts.py)")
                 elif status == "stop":
-                    # Short delay lets any audio captured during playback drain
-                    # through Whisper before the ASR pipeline reopens.
                     def _delayed_unmute():
                         import time
-                        import listen as _listen
-                        import tts
-                        time.sleep(tts.ASR_UNMUTE_DELAY)
-                        _listen.unmute()
+                        time.sleep(ASR_UNMUTE_DELAY)
+                        asr.unmute()
                     threading.Thread(target=_delayed_unmute, daemon=True).start()
-                    print("\n  [app] tts_status=stop — ASR unmuting in 0.5 s")
+                    print("\n  [app] tts_status=stop — ASR unmuting")
                 continue
 
             if action == "reset":
                 reset_event.set()
                 print("\n  [app] reset requested")
                 continue
-            # Answers carry the full option text; everything else maps via the table.
+
             if action == "answer":
                 text = data.get("answer", action)
             else:
@@ -140,7 +137,7 @@ def flush_action_queue():
 
 
 def broadcast_tts(text: str):
-    """Send a TTS message to all connected clients (temi mode)."""
+    """Send a TTS utterance to all connected clients (temi mode)."""
     if _loop and _loop.is_running():
         msg = json.dumps({"type": "tts", "text": text})
         asyncio.run_coroutine_threadsafe(_broadcast(msg), _loop)
@@ -154,7 +151,7 @@ def broadcast_tts_active(active: bool):
 
 
 class _ServerHandle:
-    """Returned by start_ws_server; mirrors the HTTPServer.shutdown() API."""
+    """Returned by start_ws_server; provides a shutdown() method."""
 
     def __init__(self, loop: asyncio.AbstractEventLoop):
         self._loop = loop

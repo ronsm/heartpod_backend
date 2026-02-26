@@ -16,17 +16,13 @@ Local mode requires:
   Run `python download_voice.py` to fetch the voice model automatically.
 
 Playback backends (local mode):
-  macOS – afplay subprocess reading a temp WAV file (avoids PortAudio conflicts
-          between sounddevice and pyaudio, which share the same CoreAudio backend)
+  macOS – afplay subprocess reading a temp WAV file
   Linux – aplay subprocess reading WAV from stdin
 
 ASR muting:
-  speak() mutes listen.py's ASR pipeline for the duration of playback plus a
-  0.5 s buffer (to let any in-flight Whisper jobs drain).  For local mode the
-  seq guard ensures only the most-recent thread unmutes.  For temi mode a
-  fallback timer unmutes after an estimated playback duration; this is
-  superseded once the frontend sends tts_status WebSocket events (handled in
-  ws_server.py).
+  speak() mutes the ASR pipeline for the duration of playback plus
+  ASR_UNMUTE_DELAY (from config.py) so any audio captured at the end of
+  playback has time to drain through Whisper before the pipeline reopens.
 """
 
 import io
@@ -38,13 +34,17 @@ import threading
 import time
 import wave
 
+import asr
+from config import ASR_UNMUTE_DELAY
+from ws_server import broadcast_tts, broadcast_tts_active
+
 _mode: str = "none"
 _voice = None           # piper.voice.PiperVoice, loaded once at init
 _stop_flag = threading.Event()
 _seq_lock = threading.Lock()
 _current_seq: int = 0   # incremented on every stop(); threads bail if stale
 _proc_lock = threading.Lock()
-_current_proc = None    # current aplay subprocess (Linux only)
+_current_proc = None    # current afplay/aplay subprocess
 _temi_fallback_timer = None  # threading.Timer: unmutes after estimated temi playback
 
 _VOICES_DIR = os.path.join(os.path.dirname(__file__), "voices")
@@ -52,11 +52,6 @@ _PIPER_MODEL = os.path.join(_VOICES_DIR, "en_GB-alba-medium.onnx")
 
 # Rough average speech rate used to estimate temi playback duration (seconds/word).
 _TEMI_SECS_PER_WORD = 0.4
-
-# How long to wait after TTS finishes before re-opening the ASR pipeline.
-# Needs to be long enough for Whisper to finish processing any audio captured
-# right at the end of playback. Increase if the ASR still hears the robot.
-ASR_UNMUTE_DELAY = 1.0
 
 
 def init(mode: str) -> None:
@@ -88,30 +83,23 @@ def speak(text: str) -> None:
     """Start speaking text, interrupting any speech already in progress."""
     global _current_seq, _temi_fallback_timer
     if _mode == "local":
-        import listen as _listen
-        _listen.mute()
+        asr.mute()
         stop()
         _stop_flag.clear()
         with _seq_lock:
             _current_seq += 1
             seq = _current_seq
-        from ws_server import broadcast_tts_active
         broadcast_tts_active(True)
         threading.Thread(target=_speak_local, args=(text, seq), daemon=True).start()
     elif _mode == "temi":
-        import listen as _listen
-        from ws_server import broadcast_tts
-        # Cancel any previous fallback that hasn't fired yet.
         if _temi_fallback_timer is not None:
             _temi_fallback_timer.cancel()
-        _listen.mute()
+        asr.mute()
         broadcast_tts(text)
         # Fallback: fires if the real robot never sends tts_status=stop
         # (e.g. on emulator where onTtsStatusChanged never fires).
-        # Unmutes the ASR and unlocks the frontend buttons.
         def _temi_fallback():
-            _listen.unmute()
-            from ws_server import broadcast_tts_active
+            asr.unmute()
             broadcast_tts_active(False)
         words = len(text.split())
         delay = max(2.0, words * _TEMI_SECS_PER_WORD + 0.5)
@@ -136,12 +124,12 @@ def stop() -> None:
 
 def _speak_local(text: str, seq: int) -> None:
     """Worker: synthesise with piper, then play audio."""
+    import numpy as np
     try:
         if _stop_flag.is_set():
             return
 
         try:
-            import numpy as np
             chunks = [chunk.audio_float_array for chunk in _voice.synthesize(text)]
         except Exception as e:
             print(f"  [TTS synthesis error: {e}]")
@@ -156,7 +144,6 @@ def _speak_local(text: str, seq: int) -> None:
         if _stop_flag.is_set() or seq != current:
             return
 
-        import numpy as np
         audio = np.concatenate(chunks)  # float32, range [-1, 1]
 
         if sys.platform == "darwin":
@@ -165,20 +152,16 @@ def _speak_local(text: str, seq: int) -> None:
             _play_aplay(audio, seq)
 
     finally:
-        # Unlock the frontend immediately when playback is done.
-        # The seq guard ensures a thread killed by stop() doesn't unlock while a
-        # newer speak() is already in progress.
+        # Unlock the frontend and unmute ASR when playback ends.
+        # The seq guard ensures a thread killed by stop() doesn't unlock while
+        # a newer speak() is already in progress.
         with _seq_lock:
             if seq == _current_seq:
-                from ws_server import broadcast_tts_active
                 broadcast_tts_active(False)
-        # Unmute ASR after a short buffer so any audio captured during playback
-        # has time to flush through Whisper before the pipeline reopens.
         time.sleep(ASR_UNMUTE_DELAY)
         with _seq_lock:
             if seq == _current_seq:
-                import listen as _listen
-                _listen.unmute()
+                asr.unmute()
 
 
 def _play_macos(audio, seq: int) -> None:

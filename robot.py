@@ -178,7 +178,7 @@ class HealthRobotGraph:
     def sorry_node(self, state: ConversationState) -> ConversationState:
         """Triggered only by a device reading failure (timeout)."""
         msg = (
-            f"{PAGE_CONFIG['sorry']['message_device']}\n"
+            f"{PAGE_CONFIG['sorry']['message']}\n"
             f"(Retry {state.get('retry_count', 0)}/{MAX_RETRIES})"
         )
         return self._set_page(state, "sorry", msg)
@@ -404,13 +404,11 @@ class HealthRobotGraph:
                 state: ConversationState = {
                     "current_stage": "idle",
                     "page_id": PAGE_CONFIG["idle"]["page_id"],
-                    "user_input": "",
                     "robot_response": "",
                     "answers": {},
                     "readings": {},
                     "retry_stage": "",
                     "retry_count": 0,
-                    "should_continue": False,
                 }
 
                 # ── idle ──────────────────────────────────────────────────
