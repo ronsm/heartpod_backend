@@ -36,11 +36,12 @@ class LLMHelper:
                     f"The user was being asked to: {action_context}\n\n"
                     "Decide whether the user's response is POSITIVE or NEGATIVE in sentiment.\n"
                     "A positive response means they are willing, ready, agreeing, or consenting.\n"
+                    "Examples of positive responses include the words 'start', 'continue', 'proceed', 'I agree', 'I accept', 'yes'.\n"
                     "A negative response means they are unwilling, confused, asking a question,\n"
                     "or explicitly declining.\n\n"
                     "OUTPUT RULES:\n"
                     "- If positive: reply with ONLY the single word: PROCEED\n"
-                    "- If negative: reply with a helpful 2-3 sentence response as Temi,\n"
+                    "- If negative: reply with a short sentence as Temi,\n"
                     "  then gently remind them about the current step.\n"
                     "  Do NOT begin your response with the word PROCEED."
                 )

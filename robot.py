@@ -448,12 +448,9 @@ class HealthRobotGraph:
                             state["answers"][qkey] = value
                             print(f"  [Recorded {qkey}: {value}]")
                             break
-                        opts = "\n".join(
-                            f"  {i+1}. {o}"
-                            for i, o in enumerate(PAGE_CONFIG[qkey]["options"])
-                        )
+                        opts = "\n    ".join(PAGE_CONFIG[qkey]["options"])
                         self._print_robot(
-                            f"I didn't quite catch that. Please choose one of:\n{opts}"
+                            f"I didn't quite catch that. Please choose one of:\n    {opts}"
                         )
 
                 # ── measure intro ─────────────────────────────────────────

@@ -35,8 +35,7 @@ PAGE_CONFIG = {
         "page_id": "01",
         "message": (
             "Hello, welcome to the self-screening health check pod. "
-            "If you would like to start a self-screening, please choose "
-            "'Start Self-Screening' on my screen."
+            "Say 'Start' or tap 'Start' on my screen to begin."
         ),
         "action_context": (
             "confirming whether they want to begin the health check "
@@ -71,13 +70,13 @@ PAGE_CONFIG = {
             "  5. Many times per day"
         ),
         "options": [
-            "I previously smoked but no longer do",
-            "I do not and have never smoked",
-            "Occasionally (e.g. weekly or monthly)",
-            "A few times a day",
-            "Many times per day",
+            "I previously smoked but no longer do.",
+            "I do not and have never smoked.",
+            "Occasionally (e.g. weekly or monthly).",
+            "A few times a day.",
+            "Many times per day.",
         ],
-        "speech": "How often do you smoke? You can say your answer, tap it on screen, or say skip to move on.",
+        "speech": "How frequently do you smoke? You can say your answer, tap it on screen, or say skip to move on.",
         "action_context": "answering a question about their smoking frequency",
     },
     "q2": {
@@ -86,16 +85,16 @@ PAGE_CONFIG = {
             "Q2. How often do you exercise?\n"
             "  1. Never\n"
             "  2. Rarely (a few times a month)\n"
-            "  3. Sometimes (1-2 times a week)\n"
-            "  4. Often (3-4 times a week)\n"
+            "  3. Sometimes (1 or 2 times a week)\n"
+            "  4. Often (3 or 4 times a week)\n"
             "  5. Daily"
         ),
         "options": [
-            "Never",
-            "Rarely (a few times a month)",
-            "Sometimes (1-2 times a week)",
-            "Often (3-4 times a week)",
-            "Daily",
+            "Never.",
+            "Rarely (a few times a month).",
+            "Sometimes (1 or 2 times a week).",
+            "Often (3 or 4 times a week).",
+            "Daily.",
         ],
         "speech": "How often do you exercise? You can say your answer, tap it on screen, or say skip to move on.",
         "action_context": "answering a question about their exercise frequency",
@@ -105,17 +104,17 @@ PAGE_CONFIG = {
         "message": (
             "Q3. How many units of alcohol do you drink per week?\n"
             "  1. None\n"
-            "  2. 1-7 units\n"
-            "  3. 8-14 units\n"
-            "  4. 15-21 units\n"
+            "  2. 1 to 7 units\n"
+            "  3. 8 to 14 units\n"
+            "  4. 15 to 21 units\n"
             "  5. More than 21 units"
         ),
         "options": [
-            "None",
-            "1-7 units",
-            "8-14 units",
-            "15-21 units",
-            "More than 21 units",
+            "None.",
+            "1 to 7 units.",
+            "8 to 14 units.",
+            "15 to 21 units.",
+            "More than 21 units.",
         ],
         "speech": "How many units of alcohol do you drink per week? You can say your answer, tap it on screen, or say skip to move on.",
         "action_context": "answering a question about their weekly alcohol consumption",
@@ -138,7 +137,7 @@ PAGE_CONFIG = {
     },
     "oximeter_reading": {
         "page_id": "08",
-        "message": "Taking oximeter reading... please stay still.",
+        "message": "Taking oximeter reading.\n    Please stay still.",
         "action_context": "waiting for oximeter device data",
     },
     "oximeter_done": {
