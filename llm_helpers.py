@@ -37,6 +37,7 @@ class LLMHelper:
                     "Decide whether the user's response is POSITIVE or NEGATIVE in sentiment.\n"
                     "A positive response means they are willing, ready, agreeing, or consenting.\n"
                     "Examples of positive responses include the words 'start', 'continue', 'proceed', 'I agree', 'I accept', 'yes'.\n"
+                    "Use common sense reasoning about whether they are ready.\n"
                     "A negative response means they are unwilling, confused, asking a question,\n"
                     "or explicitly declining.\n\n"
                     "OUTPUT RULES:\n"

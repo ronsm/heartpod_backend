@@ -101,8 +101,79 @@ async def get_reading():
     return None
 
 
+async def get_all_readings():
+    """Connect to the Omron BP monitor and print all stored readings to the terminal."""
+    print("Press the BT button on the blood pressure monitor.")
+
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        if attempt > 1:
+            print(f"\nAttempt {attempt}/{MAX_ATTEMPTS} — press the BT button on the monitor.")
+            await asyncio.sleep(6)
+
+        print("Searching for Omron BP monitor...")
+        device = await BleakScanner.find_device_by_address(DEVICE_ADDRESS, timeout=60.0)
+        if not device:
+            print("Device not found. Press the BT button on the monitor and try again.")
+            continue
+
+        print(f"Found {device.name}. Connecting...")
+        try:
+            readings = []
+            done = asyncio.Event()
+            connected = [False]
+            loop = asyncio.get_running_loop()
+
+            def on_disconnect(_client):
+                if connected[0]:
+                    loop.call_soon_threadsafe(done.set)
+
+            async with BleakClient(device, timeout=20.0, disconnected_callback=on_disconnect) as client:
+                connected[0] = True
+                print("Connected. Requesting all stored readings...")
+
+                def handler(_sender, data: bytearray):
+                    systolic  = round(_sfloat_to_float(int.from_bytes(data[1:3], "little")), 1)
+                    diastolic = round(_sfloat_to_float(int.from_bytes(data[3:5], "little")), 1)
+                    readings.append({"systolic": systolic, "diastolic": diastolic})
+                    print(f"  [{len(readings):>2}] Systolic={systolic}, Diastolic={diastolic} mmHg")
+
+                await client.start_notify(BP_MEASUREMENT_CHAR_UUID, handler)
+
+                now = datetime.now()
+                time_payload = struct.pack(
+                    '<HBBBBBBBB',
+                    now.year, now.month, now.day,
+                    now.hour, now.minute, now.second,
+                    now.weekday() + 1, 0, 0
+                )
+                await client.write_gatt_char(CURRENT_TIME_CHAR_UUID, time_payload)
+                await client.write_gatt_char(OMRON_WRITE_CHAR_UUID, b'\x01\x00', response=True)
+
+                print("Waiting for readings (device will disconnect when done)...")
+                try:
+                    await asyncio.wait_for(done.wait(), timeout=120)
+                except asyncio.TimeoutError:
+                    print("Timed out.")
+
+                await client.stop_notify(BP_MEASUREMENT_CHAR_UUID)
+
+        except Exception as e:
+            print(f"Connection error: {e}")
+            continue
+
+        print(f"\nReceived {len(readings)} reading(s).")
+        return readings
+
+    print(f"\nFailed to connect after {MAX_ATTEMPTS} attempts.")
+    return []
+
+
 if __name__ == "__main__":
+    import sys
     try:
-        asyncio.run(get_reading())
+        if "--clear" in sys.argv:
+            asyncio.run(get_all_readings())
+        else:
+            asyncio.run(get_reading())
     except KeyboardInterrupt:
         pass

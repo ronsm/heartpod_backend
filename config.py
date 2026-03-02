@@ -15,7 +15,7 @@ READING_TIMEOUT = 30  # seconds
 
 # LLM settings — temperature 0.0 gives deterministic, consistent classifications.
 LLM_MODEL = "gpt-4o-mini"
-LLM_TEMPERATURE = 0.0
+LLM_TEMPERATURE = 0.25
 
 # How long to wait after TTS finishes before reopening the ASR pipeline.
 # Increase if the ASR still occasionally hears the tail end of the robot's voice.
