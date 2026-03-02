@@ -80,8 +80,8 @@ def recognize(
             continue
 
         try:
-            utterance = recognizer.recognize_whisper(  # type: ignore[attr-defined]
-                audio, model="base.en", language="english"
+            utterance = recognizer.recognize_faster_whisper(  # type: ignore[attr-defined]
+                audio, model="small.en", language="english"
             )
 
         except Exception as error:

@@ -149,7 +149,7 @@ PAGE_CONFIG = {
     },
     "oximeter_reading": {
         "page_id": "08",
-        "message": "Taking oximeter reading...Please stay still.",
+        "message": "Taking oximeter reading\nPlease stay still.",
         "action_context": "waiting for oximeter device data",
     },
     "oximeter_done": {

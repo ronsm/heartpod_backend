@@ -315,7 +315,7 @@ class HealthRobotGraph:
         """
         Run the full intro → reading → done cycle for one device.
         Returns True if the reading succeeded, False if the user gave up or
-        retries were exhausted (caller should `continue` back to idle).
+        retries were exhausted (session continues with the next sensor).
         """
         intro_node = getattr(self, f"{intro_stage}_node")
         done_node = getattr(self, f"{done_stage}_node")
@@ -347,12 +347,12 @@ class HealthRobotGraph:
             self._print_robot(state["robot_response"], state["page_id"])
 
             if state["retry_count"] >= MAX_RETRIES:
-                self._print_robot("Maximum retries reached. Returning to start.")
+                self._print_robot("Maximum retries reached. We will skip this measurement and move on.")
                 return False
 
             user_input = self._ask_user()
             if not self.llm.retry_or_give_up(user_input):
-                self._print_robot("No problem. Returning to start.")
+                self._print_robot("No problem. We will skip this measurement and move on.")
                 return False
 
     def _print_receipt(self, state: ConversationState):
@@ -447,14 +447,9 @@ class HealthRobotGraph:
                 self._wait_for_proceed(PAGE_CONFIG["measure_intro"]["action_context"], state["robot_response"])
 
                 # ── device readings ───────────────────────────────────────
-                if not self._reading_loop(
-                    "oximeter", "oximeter_intro", "oximeter_done", state
-                ):
-                    continue
-                if not self._reading_loop("bp", "bp_intro", "bp_done", state):
-                    continue
-                if not self._reading_loop("scale", "scale_intro", "scale_done", state):
-                    continue
+                self._reading_loop("oximeter", "oximeter_intro", "oximeter_done", state)
+                self._reading_loop("bp", "bp_intro", "bp_done", state)
+                self._reading_loop("scale", "scale_intro", "scale_done", state)
 
                 # ── recap ─────────────────────────────────────────────────
                 state = self.recap_node(state)
