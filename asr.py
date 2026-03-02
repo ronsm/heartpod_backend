@@ -12,12 +12,32 @@ from threading import Event
 _muted: Event = Event()
 _unmuted_at: float = 0.0
 _hold_until: float = 0.0  # wall-clock time before which unmute() must not fire
+_locked: bool = False      # hard lock: unmute() is a no-op until unlock() is called
 
 
 def mute() -> None:
     """Suppress ASR output (called while TTS is playing)."""
     _muted.set()
     print("  [ASR: muted]")
+
+
+def lock() -> None:
+    """Permanently suppress ASR until unlock() is called (e.g., tap-only idle page).
+
+    Unlike hold_mute_for(), this does NOT spawn any deferred timer — unmute()
+    becomes a clean no-op for the duration of the lock.
+    """
+    global _locked
+    _locked = True
+    _muted.set()
+    print("  [ASR: locked (tap-only)]")
+
+
+def unlock() -> None:
+    """Remove the permanent lock and unmute immediately."""
+    global _locked
+    _locked = False
+    unmute()
 
 
 def hold_mute_for(seconds: float) -> None:
@@ -36,6 +56,8 @@ def hold_mute_for(seconds: float) -> None:
 def unmute() -> None:
     """Resume ASR output (deferred if a hold-mute window is still active)."""
     global _unmuted_at
+    if _locked:
+        return
     remaining = _hold_until - time.time()
     if remaining > 0:
         t = threading.Timer(remaining, unmute)

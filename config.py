@@ -52,7 +52,7 @@ PAGE_CONFIG = {
             "confirming whether they want to begin the health check "
             "(yes to start, no to decline)"
         ),
-        "location": "sink",
+        "location": "front door",
     },
     "welcome": {
         "page_id": "02",
@@ -68,7 +68,7 @@ PAGE_CONFIG = {
             "Let me know if you wish to continue."
         ),
         "action_context": "confirming they consent to start the session",
-        "location": "dining",
+        "location": "triage",
     },
     "q1": {
         "page_id": "03",
