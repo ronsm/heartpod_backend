@@ -10,10 +10,13 @@ import queue as queue_module
 
 from langgraph.graph import StateGraph, END
 
-from config import PAGE_CONFIG, MAX_RETRIES, READING_TIMEOUT
+import time
+
+from config import PAGE_CONFIG, MAX_RETRIES, READING_TIMEOUT, RECAP_RETURN_DELAY
 from state import ConversationState
 from device import device_queue, simulate_reading, get_real_reading
 from llm_helpers import LLMHelper
+import asr
 import tts
 from ws_server import action_queue, reset_event, update_state, flush_action_queue
 
@@ -164,25 +167,7 @@ class HealthRobotGraph:
         return self._set_page(state, "scale_done", msg)
 
     def recap_node(self, state: ConversationState) -> ConversationState:
-        a = state["answers"]
-        r = state["readings"]
-        lines = [
-            PAGE_CONFIG["recap"]["message"],
-            "",
-            "Questionnaire answers:",
-            f"  Smoking:   {a.get('q1', 'not answered')}",
-            f"  Exercise:  {a.get('q2', 'not answered')}",
-            f"  Alcohol:   {a.get('q3', 'not answered')}",
-            "",
-            "Measurements:",
-            f"  Heart Rate: {r.get('oximeter_hr', '?')} bpm",
-            f"  SpO2:       {r.get('oximeter_spo2', '?')}%",
-            f"  BP:         {r.get('bp', '?')} mmHg",
-            f"  Weight:     {r.get('scale', '?')} kg",
-            "",
-            "Thank you for completing your health check! Say anything to return to the start.",
-        ]
-        return self._set_page(state, "recap", "\n".join(lines))
+        return self._set_page(state, "recap", PAGE_CONFIG["recap"]["message"])
 
     def sorry_node(self, state: ConversationState) -> ConversationState:
         """Triggered only by a device reading failure (timeout)."""
@@ -341,7 +326,11 @@ class HealthRobotGraph:
 
         state = intro_node(state)
         self._print_robot(state["robot_response"], state["page_id"])
+        video_mute = PAGE_CONFIG[intro_stage].get("video_mute_duration", 0)
+        if video_mute > 0:
+            asr.hold_mute_for(video_mute)
         self._wait_for_proceed(PAGE_CONFIG[intro_stage]["action_context"], state["robot_response"])
+        asr.cancel_hold()  # user is done with the video page; clear any remaining hold
 
         while True:
             reading_node = getattr(self, f"{device}_reading_node")
@@ -423,7 +412,10 @@ class HealthRobotGraph:
                 # ── idle ──────────────────────────────────────────────────
                 state = self.idle_node(state)
                 self._print_robot(state["robot_response"], state["page_id"])
+                # Idle page is tap-only: keep ASR muted until the user presses Start.
+                asr.hold_mute_for(86400)
                 self._wait_for_proceed(PAGE_CONFIG["idle"]["action_context"], state["robot_response"])
+                asr.cancel_hold()
 
                 # ── welcome ───────────────────────────────────────────────
                 state = self.welcome_node(state)
@@ -472,7 +464,7 @@ class HealthRobotGraph:
                 state = self.recap_node(state)
                 self._print_robot(state["robot_response"], state["page_id"])
                 self._print_receipt(state)
-                self._ask_user()  # any input returns to idle
+                time.sleep(RECAP_RETURN_DELAY)
 
             except _ResetRequested:
                 print("\n  [Reset requested — restarting]\n")

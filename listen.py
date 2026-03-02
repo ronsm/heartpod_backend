@@ -1,4 +1,5 @@
 import argparse
+import time
 from queue import Queue
 from threading import Thread
 from typing import Optional
@@ -33,13 +34,13 @@ def listen(
         print("Listening... Say something!")
         try:
             while True:
-                audio_queue.put(recognizer.listen(source))
+                audio_queue.put((recognizer.listen(source), time.time()))
         except KeyboardInterrupt:
             pass
 
     print("Stopped listening")
     audio_queue.join()
-    audio_queue.put(None)  # signal recognize() that no more audio is coming
+    audio_queue.put((None, 0.0))  # signal recognize() that no more audio is coming
 
 
 def recognize(audio_queue: Queue, action_queue: Queue) -> None:
@@ -72,12 +73,19 @@ def recognize(audio_queue: Queue, action_queue: Queue) -> None:
     print("Whisper model ready.")
 
     while True:
-        audio = audio_queue.get()
+        audio, captured_at = audio_queue.get()
         if audio is None:
             audio_queue.task_done()
             break
 
         try:
+            # Discard before transcription if ASR is currently muted, or if the
+            # audio was captured before the most recent unmute (i.e. it was queued
+            # during a muted window and only surfaced after the TTS finished).
+            if asr.is_muted() or captured_at < asr.last_unmuted_at():
+                print(f"  [speech suppressed (TTS active): captured during muted period]")
+                continue
+
             raw = audio.get_raw_data(convert_rate=16000, convert_width=2)
             audio_np = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
 
@@ -89,9 +97,6 @@ def recognize(audio_queue: Queue, action_queue: Queue) -> None:
             if utterance in _hallucinations:
                 continue
             if not utterance:
-                continue
-            if asr.is_muted():
-                print(f"  [speech suppressed (TTS active): '{utterance}']")
                 continue
 
             action_queue.put(utterance)

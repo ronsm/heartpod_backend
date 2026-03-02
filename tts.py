@@ -36,7 +36,7 @@ import wave
 
 import asr
 from config import ASR_UNMUTE_DELAY
-from ws_server import broadcast_tts, broadcast_tts_active
+from ws_server import broadcast_tts, broadcast_tts_active, cancel_pending_unmute
 
 _mode: str = "none"
 _voice = None           # piper.voice.PiperVoice, loaded once at init
@@ -45,13 +45,9 @@ _seq_lock = threading.Lock()
 _current_seq: int = 0   # incremented on every stop(); threads bail if stale
 _proc_lock = threading.Lock()
 _current_proc = None    # current afplay/aplay subprocess
-_temi_fallback_timer = None  # threading.Timer: unmutes after estimated temi playback
 
 _VOICES_DIR = os.path.join(os.path.dirname(__file__), "voices")
 _PIPER_MODEL = os.path.join(_VOICES_DIR, "en_GB-alba-medium.onnx")
-
-# Rough average speech rate used to estimate temi playback duration (seconds/word).
-_TEMI_SECS_PER_WORD = 0.4
 
 
 def init(mode: str) -> None:
@@ -81,7 +77,7 @@ def init(mode: str) -> None:
 
 def speak(text: str) -> None:
     """Start speaking text, interrupting any speech already in progress."""
-    global _current_seq, _temi_fallback_timer
+    global _current_seq
     if _mode == "local":
         asr.mute()
         stop()
@@ -92,20 +88,12 @@ def speak(text: str) -> None:
         broadcast_tts_active(True)
         threading.Thread(target=_speak_local, args=(text, seq), daemon=True).start()
     elif _mode == "temi":
-        if _temi_fallback_timer is not None:
-            _temi_fallback_timer.cancel()
+        cancel_pending_unmute()  # kill any stale unmute from the previous utterance
         asr.mute()
         broadcast_tts(text)
-        # Fallback: fires if the real robot never sends tts_status=stop
-        # (e.g. on emulator where onTtsStatusChanged never fires).
-        def _temi_fallback():
-            asr.unmute()
-            broadcast_tts_active(False)
-        words = len(text.split())
-        delay = max(2.0, words * _TEMI_SECS_PER_WORD + 0.5)
-        _temi_fallback_timer = threading.Timer(delay, _temi_fallback)
-        _temi_fallback_timer.daemon = True
-        _temi_fallback_timer.start()
+        # ASR is unmuted exclusively by tts_status=stop arriving from the app
+        # via ws_server._unmute_timer.  No fallback timer — any time-based estimate
+        # risks firing while Temi is still talking.
 
 
 def stop() -> None:

@@ -7,6 +7,9 @@
 # (Distinct from per-sensor BLE connection attempts, which live in each sensor module.)
 MAX_RETRIES = 3
 
+# How long (seconds) to stay on the recap page before automatically returning to idle.
+RECAP_RETURN_DELAY = 30
+
 # Timeout used in dummy/simulated mode when waiting for a fake device reading.
 READING_TIMEOUT = 30  # seconds
 
@@ -17,6 +20,14 @@ LLM_TEMPERATURE = 0.0
 # How long to wait after TTS finishes before reopening the ASR pipeline.
 # Increase if the ASR still occasionally hears the tail end of the robot's voice.
 ASR_UNMUTE_DELAY = 1.0  # seconds
+
+# Duration (seconds) to keep the microphone muted while each instruction video plays.
+# Set each value to the length of the corresponding YouTube video so the ASR does not
+# pick up the video audio.  Voice input becomes available again once this timer expires
+# or the user presses "I'm Ready", whichever comes first.
+OXIMETER_VIDEO_DURATION = 10  # seconds
+BP_VIDEO_DURATION = 10        # seconds
+SCALE_VIDEO_DURATION = 10     # seconds
 
 # ---------------------------------------------------------------------------
 # PAGE_CONFIG – single source of all static strings
@@ -35,7 +46,7 @@ PAGE_CONFIG = {
         "page_id": "01",
         "message": (
             "Hello, welcome to the self-screening health check pod. "
-            "Say 'Start' or tap 'Start' on my screen to begin."
+            "Tap 'Start' on my screen to begin."
         ),
         "action_context": (
             "confirming whether they want to begin the health check "
@@ -134,10 +145,11 @@ PAGE_CONFIG = {
         "message": "Please watch the short video on screen for instructions on using the oximeter. Say 'ready' or press the button when it's in place.",
         "action_context": "confirming the oximeter is clipped onto their finger",
         "video_id": "eEzD-Y97ges",
+        "video_mute_duration": OXIMETER_VIDEO_DURATION,
     },
     "oximeter_reading": {
         "page_id": "08",
-        "message": "Taking oximeter reading.\n    Please stay still.",
+        "message": "Taking oximeter reading...Please stay still.",
         "action_context": "waiting for oximeter device data",
     },
     "oximeter_done": {
@@ -154,6 +166,7 @@ PAGE_CONFIG = {
         "message": "Please watch the short video on screen for instructions on putting on the blood pressure cuff. Say 'ready' or press the button when you're set.",
         "action_context": "confirming the blood pressure cuff is on and they are ready",
         "video_id": "eEzD-Y97ges",
+        "video_mute_duration": BP_VIDEO_DURATION,
     },
     "bp_reading": {
         "page_id": "11",
@@ -174,6 +187,7 @@ PAGE_CONFIG = {
         "message": "Please watch the short video on screen for instructions on using the scale. Say 'ready' or press the button when you're standing on it.",
         "action_context": "confirming they are standing on the scale",
         "video_id": "eEzD-Y97ges",
+        "video_mute_duration": SCALE_VIDEO_DURATION,
     },
     "scale_reading": {
         "page_id": "14",
