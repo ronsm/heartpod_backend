@@ -83,7 +83,7 @@ def main():
         recognizer = sr.Recognizer()
         audio_queue = Queue()
         threading.Thread(target=listen, args=(recognizer, audio_queue, microphone), daemon=True).start()
-        threading.Thread(target=recognize, args=(audio_queue, action_queue), daemon=True).start()
+        threading.Thread(target=recognize, args=(recognizer, audio_queue, action_queue), daemon=True).start()
         print("Speech listener started\n")
 
     input_thread = threading.Thread(target=_terminal_input_loop, daemon=True)

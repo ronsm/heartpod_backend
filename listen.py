@@ -4,12 +4,10 @@ from queue import Queue
 from threading import Thread
 from typing import Optional
 
-import numpy as np
 # Imported for its side effect of silencing ALSA/JACK console warnings:
 # https://github.com/Uberi/speech_recognition/issues/182
 import sounddevice  # noqa: F401
 import speech_recognition as sr
-from faster_whisper import WhisperModel
 
 import asr
 
@@ -43,7 +41,11 @@ def listen(
     audio_queue.put((None, 0.0))  # signal recognize() that no more audio is coming
 
 
-def recognize(audio_queue: Queue, action_queue: Queue) -> None:
+def recognize(
+    recognizer: sr.Recognizer,
+    audio_queue: Queue,
+    action_queue: Queue,
+) -> None:
     """Transcribe audio chunks and forward recognised text to action_queue.
 
     Runs in a dedicated thread. Discards known Whisper hallucinations and
@@ -62,48 +64,41 @@ def recognize(audio_queue: Queue, action_queue: Queue) -> None:
         "MBC 뉴스",
     }
 
-    try:
-        import ctranslate2
-        device = "cuda" if ctranslate2.get_cuda_device_count() > 0 else "cpu"
-    except Exception:
-        device = "cpu"
-    compute_type = "float16" if device == "cuda" else "int8"
-    print(f"Loading Whisper model on {device.upper()}...")
-    model = WhisperModel("base.en", device=device, compute_type=compute_type)
-    print("Whisper model ready.")
-
     while True:
         audio, captured_at = audio_queue.get()
+
         if audio is None:
             audio_queue.task_done()
             break
 
+        # Discard before transcription if ASR is currently muted, or if the
+        # audio was captured before the most recent unmute (i.e. it was queued
+        # during a muted window and only surfaced after the TTS finished).
+        if asr.is_muted() or captured_at < asr.last_unmuted_at():
+            audio_queue.task_done()
+            print(f"  [speech suppressed (TTS active): captured during muted period]")
+            continue
+
         try:
-            # Discard before transcription if ASR is currently muted, or if the
-            # audio was captured before the most recent unmute (i.e. it was queued
-            # during a muted window and only surfaced after the TTS finished).
-            if asr.is_muted() or captured_at < asr.last_unmuted_at():
-                print(f"  [speech suppressed (TTS active): captured during muted period]")
-                continue
-
-            raw = audio.get_raw_data(convert_rate=16000, convert_width=2)
-            audio_np = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
-
-            with np.errstate(divide="ignore", over="ignore", invalid="ignore"):
-                segments, _ = model.transcribe(audio_np, language="en")
-            utterance = " ".join(segment.text for segment in segments)
-            utterance = utterance.strip().rstrip(".!?,;")
-
-            if utterance in _hallucinations:
-                continue
-            if not utterance:
-                continue
-
-            action_queue.put(utterance)
-            print(f"  [speech] '{utterance}'")
+            utterance = recognizer.recognize_whisper(  # type: ignore[attr-defined]
+                audio, model="base.en", language="english"
+            )
 
         except Exception as error:
             print(f"  [speech] recognition error: {error}")
+
+        else:
+            # Remove leading whitespace inserted by Whisper
+            utterance = utterance.lstrip()
+
+            # Reject hallucinations
+            if utterance in _hallucinations:
+                continue
+
+            # Put the recognized speech on the action queue
+            action_queue.put(utterance)
+            print(f"  [speech] '{utterance}'")
+
         finally:
             audio_queue.task_done()
 
@@ -148,7 +143,7 @@ def main():
     audio_queue = Queue()
     output_queue = Queue()
 
-    worker = Thread(target=recognize, args=(audio_queue, output_queue))
+    worker = Thread(target=recognize, args=(recognizer, audio_queue, output_queue))
     worker.start()
 
     listen(recognizer, audio_queue, microphone, args.energy_threshold)
