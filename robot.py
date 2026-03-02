@@ -412,10 +412,10 @@ class HealthRobotGraph:
                 # ── idle ──────────────────────────────────────────────────
                 state = self.idle_node(state)
                 self._print_robot(state["robot_response"], state["page_id"])
-                # Idle page is tap-only: keep ASR muted until the user presses Start.
-                asr.hold_mute_for(86400)
+                # Idle page is tap-only: hard-lock ASR so tts_status=stop never unmutes it.
+                asr.lock()
                 self._wait_for_proceed(PAGE_CONFIG["idle"]["action_context"], state["robot_response"])
-                asr.cancel_hold()
+                asr.unlock()
 
                 # ── welcome ───────────────────────────────────────────────
                 state = self.welcome_node(state)
