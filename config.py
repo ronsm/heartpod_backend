@@ -144,7 +144,7 @@ PAGE_CONFIG = {
         "page_id": "07",
         "message": "Please watch the short video on screen for instructions on using the oximeter. Please press Ready or say Ready when it's in place.",
         "action_context": "confirming the oximeter is clipped onto their finger",
-        "video_id": "eEzD-Y97ges",
+        "video_id": "27tukOh36Vk",
         "video_mute_duration": OXIMETER_VIDEO_DURATION,
     },
     "oximeter_reading": {
@@ -165,7 +165,7 @@ PAGE_CONFIG = {
         "page_id": "10",
         "message": "Please watch the short video on screen for instructions on putting on the blood pressure cuff. Please press Ready or say Ready when you're set.",
         "action_context": "confirming the blood pressure cuff is on and they are ready",
-        "video_id": "eEzD-Y97ges",
+        "video_id": "1I68HGJ59xQ",
         "video_mute_duration": BP_VIDEO_DURATION,
     },
     "bp_reading": {
@@ -186,7 +186,7 @@ PAGE_CONFIG = {
         "page_id": "13",
         "message": "Please watch the short video on screen for instructions on using the scale. Please press Ready or say Ready when you're standing on it.",
         "action_context": "confirming they are standing on the scale",
-        "video_id": "eEzD-Y97ges",
+        "video_id": "go7RTwLXkKM",
         "video_mute_duration": SCALE_VIDEO_DURATION,
     },
     "scale_reading": {
