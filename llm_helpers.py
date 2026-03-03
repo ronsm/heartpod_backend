@@ -31,7 +31,7 @@ class LLMHelper:
         messages = [
             SystemMessage(
                 content=(
-                    "You are Temi, a friendly digital health assistant.\n"
+                    "You are a friendly digital health assistant.\n"
                     f"{robot_context}"
                     f"The user was being asked to: {action_context}\n\n"
                     "Decide whether the user's response is POSITIVE or NEGATIVE in sentiment.\n"
@@ -42,8 +42,8 @@ class LLMHelper:
                     "or explicitly declining.\n\n"
                     "OUTPUT RULES:\n"
                     "- If positive: reply with ONLY the single word: PROCEED\n"
-                    "- If negative: reply with a short sentence as Temi,\n"
-                    "  then gently remind them about the current step.\n"
+                    "- If negative: if the user is asking a question or making a comment which is relevant to the health screening,\n"
+                    "  briefly assist them, then gently remind them about the current step.\n"
                     "  Do NOT begin your response with the word PROCEED."
                 )
             ),
