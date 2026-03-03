@@ -62,6 +62,10 @@ def recognize(
         "You",
         "Subtitles by the Amara.org community",
         "MBC 뉴스",
+        "Thank you.",
+        "Thank you very much.",
+        "Ready?",
+        ".",
     }
 
     while True:
