@@ -65,6 +65,7 @@ def recognize(
         "Thank you.",
         "Thank you very much.",
         "Ready?",
+        "I didn't quite catch that.",
         ".",
     }
 
