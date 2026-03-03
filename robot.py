@@ -18,7 +18,7 @@ from device import device_queue, simulate_reading, get_real_reading
 from llm_helpers import LLMHelper
 import asr
 import tts
-from ws_server import action_queue, reset_event, update_state, flush_action_queue
+from ws_server import action_queue, reset_event, update_state, flush_action_queue, navigation_complete_event
 
 
 class _ResetRequested(Exception):
@@ -407,9 +407,19 @@ class HealthRobotGraph:
 
                 # ── idle ──────────────────────────────────────────────────
                 state = self.idle_node(state)
-                self._print_robot(state["robot_response"], state["page_id"])
-                # Idle page is tap-only: hard-lock ASR so tts_status=stop never unmutes it.
+                # Idle page is tap-only: lock ASR immediately so no ambient
+                # speech is captured while Temi navigates to the front door.
                 asr.lock()
+                # In temi mode, wait for Temi to arrive at the front door
+                # before speaking so the greeting plays on arrival, not in transit.
+                if tts.mode() == "temi":
+                    navigation_complete_event.clear()
+                    while not navigation_complete_event.wait(timeout=0.5):
+                        if reset_event.is_set():
+                            raise _ResetRequested()
+                # Discard any speech items captured before the lock took effect.
+                flush_action_queue()
+                self._print_robot(state["robot_response"], state["page_id"])
                 self._wait_for_proceed(PAGE_CONFIG["idle"]["action_context"], state["robot_response"])
                 asr.unlock()
 

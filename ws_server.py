@@ -49,6 +49,10 @@ action_queue: queue.Queue = queue.Queue()
 # so it survives flush_action_queue() calls during page transitions.
 reset_event: threading.Event = threading.Event()
 
+# Set by the frontend when Temi finishes navigating to a location.
+# Cleared by robot.py before each navigation; waited on before sending TTS.
+navigation_complete_event: threading.Event = threading.Event()
+
 # All currently connected WebSocket clients (accessed only from the event loop).
 _clients: Set[WebSocketServerProtocol] = set()
 
@@ -102,6 +106,12 @@ async def _handler(websocket: WebSocketServerProtocol):
                     _unmute_timer.daemon = True
                     _unmute_timer.start()
                     print("\n  [app] tts_status=stop — ASR unmuting")
+                continue
+
+            # go_to_complete: sent by the frontend when Temi finishes navigating.
+            if msg_type == "go_to_complete":
+                navigation_complete_event.set()
+                print("\n  [app] go_to_complete — Temi arrived at location")
                 continue
 
             # video_ended: sent by the frontend when the YouTube instruction video finishes.

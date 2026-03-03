@@ -50,6 +50,11 @@ _VOICES_DIR = os.path.join(os.path.dirname(__file__), "voices")
 _PIPER_MODEL = os.path.join(_VOICES_DIR, "en_GB-alba-medium.onnx")
 
 
+def mode() -> str:
+    """Return the current TTS mode ('none', 'local', or 'temi')."""
+    return _mode
+
+
 def init(mode: str) -> None:
     """Validate mode and load resources. Call once before speak()."""
     global _mode, _voice
