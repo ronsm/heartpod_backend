@@ -25,9 +25,9 @@ ASR_UNMUTE_DELAY = 1.0  # seconds
 # Set each value to the length of the corresponding YouTube video so the ASR does not
 # pick up the video audio.  Voice input becomes available again once this timer expires
 # or the user presses "I'm Ready", whichever comes first.
-OXIMETER_VIDEO_DURATION = 57  # seconds
+OXIMETER_VIDEO_DURATION = 58  # seconds
 BP_VIDEO_DURATION = 71        # seconds
-SCALE_VIDEO_DURATION = 42     # seconds
+SCALE_VIDEO_DURATION = 43     # seconds
 
 # ---------------------------------------------------------------------------
 # PAGE_CONFIG – single source of all static strings
@@ -144,7 +144,7 @@ PAGE_CONFIG = {
         "page_id": "07",
         "message": "Please watch the short video on screen for instructions on using the oximeter. Please press Ready or say Ready when it's in place.",
         "action_context": "confirming the oximeter is clipped onto their finger",
-        "video_id": "27tukOh36Vk",
+        "video_id": "qiTIHnhCDU8",
         "video_mute_duration": OXIMETER_VIDEO_DURATION,
     },
     "oximeter_reading": {
@@ -165,7 +165,7 @@ PAGE_CONFIG = {
         "page_id": "10",
         "message": "Please watch the short video on screen for instructions on putting on the blood pressure cuff. Please press Ready or say Ready when you're set.",
         "action_context": "confirming the blood pressure cuff is on and they are ready",
-        "video_id": "1I68HGJ59xQ",
+        "video_id": "ezVXZRRm-1Q",
         "video_mute_duration": BP_VIDEO_DURATION,
     },
     "bp_reading": {
@@ -186,7 +186,7 @@ PAGE_CONFIG = {
         "page_id": "13",
         "message": "Please watch the short video on screen for instructions on using the scale. Please press Ready or say Ready when you're standing on it.",
         "action_context": "confirming they are standing on the scale",
-        "video_id": "go7RTwLXkKM",
+        "video_id": "rto473074Yg",
         "video_mute_duration": SCALE_VIDEO_DURATION,
     },
     "scale_reading": {
