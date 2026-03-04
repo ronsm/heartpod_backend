@@ -24,17 +24,17 @@ def _sfloat_to_float(sfloat_val):
 
 async def get_reading():
     """Connect to the Omron BP monitor and return {"systolic": float, "diastolic": float}, or None on failure."""
-    print("Press the BT button on the blood pressure monitor to start a reading.")
+    print("Press the Start button on the blood pressure monitor to start a reading.")
 
     for attempt in range(1, MAX_ATTEMPTS + 1):
         if attempt > 1:
-            print(f"\nAttempt {attempt}/{MAX_ATTEMPTS} — press the BT button on the monitor.")
+            print(f"\nAttempt {attempt}/{MAX_ATTEMPTS} — press the Start button on the monitor.")
             await asyncio.sleep(6)
 
         print("Searching for Omron BP monitor...")
         device = await BleakScanner.find_device_by_address(DEVICE_ADDRESS, timeout=60.0)
         if not device:
-            print("Device not found. Press the BT button on the monitor and try again.")
+            print("Device not found. Press the Start button on the monitor and try again.")
             continue
 
         print(f"Found {device.name}. Connecting...")
@@ -47,7 +47,7 @@ async def get_reading():
 
             def on_disconnect(_client):
                 if connected[0] and result[0] is None:
-                    print("\nDisconnected. Press the BT button on the monitor and try again.")
+                    print("\nDisconnected. Press the Start button on the monitor and try again.")
                     loop.call_soon_threadsafe(disconnected.set)
                     loop.call_soon_threadsafe(done.set)
 
@@ -103,17 +103,17 @@ async def get_reading():
 
 async def get_all_readings():
     """Connect to the Omron BP monitor and print all stored readings to the terminal."""
-    print("Press the BT button on the blood pressure monitor.")
+    print("Press the Start button on the blood pressure monitor.")
 
     for attempt in range(1, MAX_ATTEMPTS + 1):
         if attempt > 1:
-            print(f"\nAttempt {attempt}/{MAX_ATTEMPTS} — press the BT button on the monitor.")
+            print(f"\nAttempt {attempt}/{MAX_ATTEMPTS} — press the Start button on the monitor.")
             await asyncio.sleep(6)
 
         print("Searching for Omron BP monitor...")
         device = await BleakScanner.find_device_by_address(DEVICE_ADDRESS, timeout=60.0)
         if not device:
-            print("Device not found. Press the BT button on the monitor and try again.")
+            print("Device not found. Press the Start button on the monitor and try again.")
             continue
 
         print(f"Found {device.name}. Connecting...")

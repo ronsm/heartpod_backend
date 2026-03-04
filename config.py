@@ -46,7 +46,7 @@ PAGE_CONFIG = {
         "page_id": "01",
         "message": (
             "Hello, welcome to the self-screening health check pod. "
-            "Tap 'Start' on my screen to begin."
+            "Tap 'Start Screening' on my screen to begin."
         ),
         "action_context": (
             "confirming whether they want to begin the health check "
@@ -149,7 +149,7 @@ PAGE_CONFIG = {
     },
     "oximeter_reading": {
         "page_id": "08",
-        "message": "Taking oximeter reading\nPlease stay still.",
+        "message": "Taking oximeter reading... Please stay still.",
         "action_context": "waiting for oximeter device data",
     },
     "oximeter_done": {
