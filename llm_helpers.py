@@ -59,8 +59,8 @@ class LLMHelper:
         self, user_input: str, question_key: str, question_text: str = ""
     ) -> Tuple[str, Optional[str]]:
         """
-        Determine if the user is skipping, answering, or unclear.
-        Returns ("skip", None) | ("answer", matched_option) | ("unclear", None).
+        Determine if the user is skipping, answering, or needs a follow-up.
+        Returns ("skip", None) | ("answer", matched_option) | ("followup", message).
         """
         options = PAGE_CONFIG[question_key]["options"]
         options_text = "\n".join(f"  {i+1}. {o}" for i, o in enumerate(options))
@@ -68,7 +68,8 @@ class LLMHelper:
         messages = [
             SystemMessage(
                 content=(
-                    "You are processing a user's response to a health questionnaire question.\n"
+                    "You are Temi, a friendly digital health assistant, processing a "
+                    "user's response to a health questionnaire question.\n"
                     f"{question_context}"
                     f"The answer options are:\n{options_text}\n\n"
                     "Determine what the user intends:\n\n"
@@ -78,11 +79,18 @@ class LLMHelper:
                     "   (by number, keyword, or meaning — e.g. \"I smoke on the weekend\"\n"
                     "   → \"Occasionally\", \"I exercise every day\" → \"Daily\",\n"
                     "   \"I drink like a fish\" → \"More than 21 units\")\n"
-                    "3. UNCLEAR — ambiguous, off-topic, or genuinely unmatchable\n\n"
+                    "3. FOLLOWUP — the user said something that doesn't clearly match\n"
+                    "   an option. This includes: vague answers that mention a relevant\n"
+                    "   topic but not enough detail (e.g. \"I do zumba\" without frequency),\n"
+                    "   clarification questions (e.g. \"do you mean cigarettes or vapes?\"),\n"
+                    "   off-topic remarks, or genuinely unmatchable input.\n\n"
                     "OUTPUT RULES:\n"
                     "- If SKIP: reply with only the word SKIP\n"
                     "- If ANSWER: reply with only the exact matching option text from the list\n"
-                    "- If UNCLEAR: reply with only the word UNCLEAR"
+                    "- If FOLLOWUP: reply with FOLLOWUP: followed by a friendly 1-2 sentence\n"
+                    "  response as Temi that acknowledges what the user said, then guides\n"
+                    "  them toward choosing one of the answer options. You can say 'skip'\n"
+                    "  to move on."
                 )
             ),
             HumanMessage(content=f"User said: {user_input}"),
@@ -92,12 +100,14 @@ class LLMHelper:
         upper = result.upper()
         if upper == "SKIP":
             return "skip", None
-        if upper == "UNCLEAR":
-            return "unclear", None
+        if result.upper().startswith("FOLLOWUP:"):
+            message = result[len("FOLLOWUP:"):].strip()
+            return "followup", message
         for opt in options:
             if opt.lower() in result.lower() or result.lower() in opt.lower():
                 return "answer", opt
-        return "unclear", None
+        # Safety fallback: if LLM didn't follow format, treat as followup
+        return "followup", None
 
     def retry_or_give_up(self, user_input: str) -> bool:
         """
@@ -117,3 +127,4 @@ class LLMHelper:
         ]
         response = self._llm.invoke(messages)
         return "RETRY" in response.content.upper()
+

@@ -214,7 +214,6 @@ class HealthRobotGraph:
             ("q3", "measure_intro"),
             ("measure_intro", "oximeter_intro"),
             ("oximeter_intro", "oximeter_reading"),
-            ("oximeter_reading", "oximeter_done"),
             ("oximeter_done", "bp_intro"),
             ("bp_intro", "bp_reading"),
             ("bp_reading", "bp_done"),
@@ -226,6 +225,14 @@ class HealthRobotGraph:
             ("sorry", END),
         ]:
             workflow.add_edge(src, dst)
+
+        # Make 'sorry' reachable so LangGraph validation passes.
+        # In practice, routing to sorry is handled imperatively in run().
+        workflow.add_conditional_edges(
+            "oximeter_reading",
+            lambda state: "sorry" if state.get("current_stage") == "sorry" else "oximeter_done",
+            {"sorry": "sorry", "oximeter_done": "oximeter_done"},
+        )
 
         return workflow.compile()
 
@@ -446,10 +453,13 @@ class HealthRobotGraph:
                             state["answers"][qkey] = value
                             print(f"  [Recorded {qkey}: {value}]")
                             break
-                        opts = "\n    ".join(PAGE_CONFIG[qkey]["options"])
-                        self._print_robot(
-                            f"I didn't quite catch that. Please choose one of:\n    {opts}"
-                        )
+                        if intent == "followup" and value:
+                            self._print_robot(value)
+                        else:
+                            opts = "\n    ".join(PAGE_CONFIG[qkey]["options"])
+                            self._print_robot(
+                                f"I didn't quite catch that. Please choose one of:\n    {opts}"
+                            )
 
                 # ── measure intro ─────────────────────────────────────────
                 state = self.measure_intro_node(state)
@@ -469,3 +479,4 @@ class HealthRobotGraph:
 
             except _ResetRequested:
                 print("\n  [Reset requested — restarting]\n")
+
