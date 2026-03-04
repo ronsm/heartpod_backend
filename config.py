@@ -25,9 +25,9 @@ ASR_UNMUTE_DELAY = 1.0  # seconds
 # Set each value to the length of the corresponding YouTube video so the ASR does not
 # pick up the video audio.  Voice input becomes available again once this timer expires
 # or the user presses "I'm Ready", whichever comes first.
-OXIMETER_VIDEO_DURATION = 40  # seconds
-BP_VIDEO_DURATION = 53        # seconds
-SCALE_VIDEO_DURATION = 25     # seconds
+OXIMETER_VIDEO_DURATION = 46  # seconds
+BP_VIDEO_DURATION = 59        # seconds
+SCALE_VIDEO_DURATION = 31     # seconds
 
 # ---------------------------------------------------------------------------
 # PAGE_CONFIG – single source of all static strings
