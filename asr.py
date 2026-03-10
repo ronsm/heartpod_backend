@@ -8,12 +8,13 @@ module at the top level without creating circular dependencies.
 import threading
 import time
 from threading import Event
+from typing import Optional
 
 _muted: Event = Event()
 _unmuted_at: float = 0.0
 _hold_until: float = 0.0  # wall-clock time before which unmute() must not fire
 _locked: bool = False      # hard lock: unmute() is a no-op until unlock() is called
-_deferred_unmute: threading.Timer | None = None  # cancellable timer created by hold-mute deferral
+_deferred_unmute: Optional[threading.Timer] = None  # cancellable timer created by hold-mute deferral
 
 
 def mute() -> None:
