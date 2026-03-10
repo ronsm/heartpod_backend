@@ -344,11 +344,15 @@ class HealthRobotGraph:
             state["retry_count"] += 1
             state["retry_stage"] = f"{device}_reading"
             state = self.sorry_node(state)
-            self._print_robot(state["robot_response"], state["page_id"])
 
             if state["retry_count"] >= MAX_RETRIES:
-                self._print_robot("Maximum retries reached. We will skip this measurement and move on.")
+                self._print_robot(
+                    state["robot_response"] + " Maximum retries reached. We will skip this measurement and move on.",
+                    state["page_id"],
+                )
                 return False
+
+            self._print_robot(state["robot_response"], state["page_id"])
 
             user_input = self._ask_user()
             if not self.llm.retry_or_give_up(user_input):
