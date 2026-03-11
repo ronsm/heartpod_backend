@@ -10,5 +10,6 @@ sounddevice
 piper-tts
 SpeechRecognition
 pyaudio
+openai-whisper
 faster-whisper
 soundfile
