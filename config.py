@@ -28,6 +28,7 @@ ASR_UNMUTE_DELAY = 1.0  # seconds
 OXIMETER_VIDEO_DURATION = 48  # seconds
 BP_VIDEO_DURATION = 60        # seconds
 SCALE_VIDEO_DURATION = 32     # seconds
+HEIGHT_VIDEO_DURATION = 30    # seconds — update once a real instruction video exists
 
 # ---------------------------------------------------------------------------
 # PAGE_CONFIG – single source of all static strings
@@ -134,8 +135,8 @@ PAGE_CONFIG = {
         "page_id": "06",
         "message": (
             "Great, thank you for answering those questions! "
-            "Now we'll take three quick measurements: an oximeter reading, "
-            "a blood pressure reading, and your weight. "
+            "Now we'll take four measurements: an oximeter reading, "
+            "a blood pressure reading, your weight, and your height. "
             "Just say 'continue' or press the button when you're happy to begin."
         ),
         "action_context": "confirming they are ready to start the measurements",
@@ -199,6 +200,27 @@ PAGE_CONFIG = {
         "message": (
             "Great. Thank you! I've recorded your weight. "
             "You can now step off the scale and sit back down. "
+            "Say 'continue' or press the button when you're ready for the height measurement."
+        ),
+        "action_context": "confirming they are ready to continue to the height measurement",
+    },
+    "height_intro": {
+        "page_id": "18",
+        "message": "Please watch the short video on screen for instructions on taking the height measurement. Press Ready or say Ready when you're in position.",
+        "action_context": "confirming they are standing in position for the height reading",
+        # TODO: replace with a real instruction video ID once available
+        "video_id": "",
+        "video_mute_duration": HEIGHT_VIDEO_DURATION,
+    },
+    "height_reading": {
+        "page_id": "19",
+        "message": "Taking height reading... please stand still.",
+        "action_context": "waiting for height sensor data",
+    },
+    "height_done": {
+        "page_id": "20",
+        "message": (
+            "Great. Thank you! I've recorded your height. "
             "Say 'continue' or press the button to see your summary."
         ),
         "action_context": "confirming they are ready to see the recap",

@@ -93,6 +93,12 @@ class HealthRobotGraph:
             data = {"message": state["robot_response"]}
         elif stage == "scale_done":
             data = {"value": str(r.get("scale", "?")), "unit": "kg"}
+        elif stage == "height_intro":
+            data = {"device": "height sensor", "video_id": PAGE_CONFIG["height_intro"]["video_id"]}
+        elif stage == "height_reading":
+            data = {"message": state["robot_response"]}
+        elif stage == "height_done":
+            data = {"value": str(r.get("height", "?")), "unit": "m"}
         elif stage == "recap":
             a = state["answers"]
             data = {
@@ -102,6 +108,7 @@ class HealthRobotGraph:
                 "oximeter": f"{r.get('oximeter_hr', '?')} bpm / {r.get('oximeter_spo2', '?')}%",
                 "bp": f"{r.get('bp', '?')} mmHg",
                 "weight": f"{r.get('scale', '?')} kg",
+                "height": f"{r.get('height', '?')} m",
             }
         elif stage == "sorry":
             data = {"message": state["robot_response"]}
@@ -138,6 +145,8 @@ class HealthRobotGraph:
     bp_reading_node = property(lambda self: self._simple_node("bp_reading"))
     scale_intro_node = property(lambda self: self._simple_node("scale_intro"))
     scale_reading_node = property(lambda self: self._simple_node("scale_reading"))
+    height_intro_node = property(lambda self: self._simple_node("height_intro"))
+    height_reading_node = property(lambda self: self._simple_node("height_reading"))
 
     # Nodes that embed live readings in their message
     def oximeter_done_node(self, state: ConversationState) -> ConversationState:
@@ -165,6 +174,12 @@ class HealthRobotGraph:
         reading = f"Your weight is {r.get('scale', '?')} kilograms. "
         msg = reading + PAGE_CONFIG["scale_done"]["message"]
         return self._set_page(state, "scale_done", msg)
+
+    def height_done_node(self, state: ConversationState) -> ConversationState:
+        r = state["readings"]
+        reading = f"Your height is {r.get('height', '?')} metres. "
+        msg = reading + PAGE_CONFIG["height_done"]["message"]
+        return self._set_page(state, "height_done", msg)
 
     def recap_node(self, state: ConversationState) -> ConversationState:
         return self._set_page(state, "recap", PAGE_CONFIG["recap"]["message"])
@@ -197,6 +212,9 @@ class HealthRobotGraph:
             "scale_intro",
             "scale_reading",
             "scale_done",
+            "height_intro",
+            "height_reading",
+            "height_done",
             "recap",
             "sorry",
         ):
@@ -221,7 +239,10 @@ class HealthRobotGraph:
             ("bp_done", "scale_intro"),
             ("scale_intro", "scale_reading"),
             ("scale_reading", "scale_done"),
-            ("scale_done", "recap"),
+            ("scale_done", "height_intro"),
+            ("height_intro", "height_reading"),
+            ("height_reading", "height_done"),
+            ("height_done", "recap"),
             ("recap", END),
             ("sorry", END),
         ]:
@@ -307,6 +328,8 @@ class HealthRobotGraph:
             state["readings"]["bp"] = data["value"]
         elif device == "scale":
             state["readings"]["scale"] = data["value"]
+        elif device == "height":
+            state["readings"]["height"] = data["value"]
         return True
 
     def _reading_loop(
@@ -370,7 +393,7 @@ class HealthRobotGraph:
             "spo2": r.get("oximeter_spo2", "?"),
             "heart_rate": r.get("oximeter_hr", "?"),
             "weight": r.get("scale", "?"),
-            "height": "\u2014",  # not captured in this workflow
+            "height": r.get("height", "\u2014"),
             "systolic": systolic,
             "diastolic": diastolic,
         }
@@ -460,6 +483,7 @@ class HealthRobotGraph:
                 self._reading_loop("oximeter", "oximeter_intro", "oximeter_done", state)
                 self._reading_loop("bp", "bp_intro", "bp_done", state)
                 self._reading_loop("scale", "scale_intro", "scale_done", state)
+                self._reading_loop("height", "height_intro", "height_done", state)
 
                 # ── recap ─────────────────────────────────────────────────
                 state = self.recap_node(state)

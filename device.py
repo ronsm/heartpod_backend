@@ -5,6 +5,7 @@ External devices push readings onto `device_queue` as dicts:
     {"device": "oximeter", "value": {"hr": 72, "spo2": 98}}
     {"device": "bp",       "value": "125/82"}
     {"device": "scale",    "value": 74.2}
+    {"device": "height",   "value": 1.75}
 
 In production, replace `simulate_reading()` with your real hardware integration
 and remove the call to it in robot.py's `_do_device_reading()`.
@@ -28,6 +29,8 @@ def _generate_value(device: str):
         return f"{systolic}/{diastolic}"
     elif device == "scale":
         return round(random.uniform(50, 120), 1)
+    elif device == "height":
+        return round(random.uniform(1.50, 2.00), 2)
     return None
 
 
@@ -79,5 +82,12 @@ def get_real_reading(device: str):
         if raw is None:
             return None
         return {"device": "scale", "value": raw}
+
+    elif device == "height":
+        from sensors import sensor_height as mod
+        raw = asyncio.run(mod.get_reading())
+        if raw is None:
+            return None
+        return {"device": "height", "value": raw}
 
     return None
