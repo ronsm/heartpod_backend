@@ -22,12 +22,12 @@ LLM_TEMPERATURE = 0.5
 ASR_UNMUTE_DELAY = 1.0  # seconds
 
 # Duration (seconds) to keep the microphone muted while each instruction video plays.
-# Set each value to the length of the corresponding YouTube video so the ASR does not
+# Set each value to the length of the corresponding video so the ASR does not
 # pick up the video audio.  Voice input becomes available again once this timer expires
 # or the user presses "I'm Ready", whichever comes first.
-OXIMETER_VIDEO_DURATION = 48  # seconds
-BP_VIDEO_DURATION = 60        # seconds
-SCALE_VIDEO_DURATION = 32     # seconds
+OXIMETER_VIDEO_DURATION = 40  # seconds
+BP_VIDEO_DURATION = 53        # seconds
+SCALE_VIDEO_DURATION = 26     # seconds
 
 # ---------------------------------------------------------------------------
 # PAGE_CONFIG – single source of all static strings
@@ -135,21 +135,21 @@ PAGE_CONFIG = {
         "message": (
             "Great, thank you for answering those questions! "
             "Now we'll take three quick measurements: an oximeter reading, "
-            "a blood pressure reading, and your weight. "
+            "your blood pressure, and your weight. "
             "Just say 'continue' or press the button when you're happy to begin."
         ),
         "action_context": "confirming they are ready to start the measurements",
     },
     "oximeter_intro": {
         "page_id": "07",
-        "message": "Please watch the short video on screen for instructions on using the oximeter. Please press Ready or say Ready when it's in place.",
+        "message": "",
         "action_context": "confirming the oximeter is clipped onto their finger",
-        "video_id": "qiTIHnhCDU8",
+        "video_id": "oximeter",
         "video_mute_duration": OXIMETER_VIDEO_DURATION,
     },
     "oximeter_reading": {
         "page_id": "08",
-        "message": "Taking oximeter reading... Please stay still.",
+        "message": "Taking oximeter reading... Please stand still.",
         "action_context": "waiting for oximeter device data",
     },
     "oximeter_done": {
@@ -163,14 +163,14 @@ PAGE_CONFIG = {
     },
     "bp_intro": {
         "page_id": "10",
-        "message": "Please watch the short video on screen for instructions on putting on the blood pressure cuff. Please press Ready or say Ready when you're set.",
+        "message": "",
         "action_context": "confirming the blood pressure cuff is on and they are ready",
-        "video_id": "ezVXZRRm-1Q",
+        "video_id": "bpm",
         "video_mute_duration": BP_VIDEO_DURATION,
     },
     "bp_reading": {
         "page_id": "11",
-        "message": "Measuring now. Please relax and keep still.",
+        "message": "Measuring now. Please relax and stand still.",
         "action_context": "waiting for blood pressure device data",
     },
     "bp_done": {
@@ -184,9 +184,9 @@ PAGE_CONFIG = {
     },
     "scale_intro": {
         "page_id": "13",
-        "message": "Please watch the short video on screen for instructions on using the scale. Please press Ready or say Ready when you're standing on it.",
+        "message": "",
         "action_context": "confirming they are standing on the scale",
-        "video_id": "rto473074Yg",
+        "video_id": "scales",
         "video_mute_duration": SCALE_VIDEO_DURATION,
     },
     "scale_reading": {

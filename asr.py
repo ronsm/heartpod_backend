@@ -45,7 +45,7 @@ def unlock() -> None:
 def hold_mute_for(seconds: float) -> None:
     """Keep ASR muted for at least `seconds` seconds from now.
 
-    Call this when a YouTube video is about to play so that the ASR stays
+    Call this when an instruction video is about to play so that the ASR stays
     muted for the video's duration, even if tts_status=stop arrives first.
     Any call to unmute() during this window will be deferred automatically.
     """
