@@ -579,26 +579,29 @@ class HealthRobotGraph:
                 }
 
                 # ── idle ──────────────────────────────────────────────────
+                # Idle is tap-only: hold STT so no ambient speech is
+                # captured while the robot idles in a busy room.
+                stt.hold()
+                # Clear the navigation event BEFORE pushing state (which
+                # triggers navigateTo on the frontend) to avoid a race
+                # where go_to_complete arrives before the clear().
+                navigation_complete_event.clear()
                 state = self.idle_node(state)
-                # Idle page is tap-only: stop STT so no ambient speech
-                # is captured while Temi navigates to the front door.
-                stt.stop()
-                # In temi mode, wait for Temi to arrive at the front door
-                # before speaking so the greeting plays on arrival, not in transit.
+                # In temi mode, wait for Temi to arrive before speaking
+                # so the greeting plays on arrival, not in transit.
                 if tts.mode() == "temi":
-                    navigation_complete_event.clear()
                     while not navigation_complete_event.wait(timeout=0.5):
                         if reset_event.is_set():
                             raise _ResetRequested()
-                # Discard any speech items captured before the lock took effect.
+                # Discard any speech items captured before the hold took effect.
                 flush_action_queue()
                 self._print_robot(state["robot_response"], state["page_id"])
                 self._wait_for_proceed(
                     PAGE_CONFIG["idle"]["action_context"], state["robot_response"]
                 )
-                stt.start()
 
                 # ── welcome ───────────────────────────────────────────────
+                stt.release_hold()
                 state = self.welcome_node(state)
                 self._print_robot(state["robot_response"], state["page_id"])
                 if not self._wait_for_consent(
