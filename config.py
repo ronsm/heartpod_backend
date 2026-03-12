@@ -209,7 +209,7 @@ PAGE_CONFIG = {
         "message": "Please watch the short video on screen for instructions on taking the height measurement. Press Ready or say Ready when you're in position.",
         "action_context": "confirming they are standing in position for the height reading",
         # TODO: replace with a real instruction video ID once available
-        "video_id": "",
+        "video_id": "height",
         "video_mute_duration": HEIGHT_VIDEO_DURATION,
     },
     "height_reading": {
