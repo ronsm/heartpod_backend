@@ -300,7 +300,9 @@ class HealthRobotGraph:
         """Like _wait_for_proceed but returns False if the user declines."""
         while True:
             user_input = self._ask_user()
-            should_go, message = self.llm.evaluate_proceed(user_input, action_context, robot_message)
+            should_go, message = self.llm.evaluate_proceed(
+                user_input, action_context, robot_message
+            )
             if should_go:
                 return True
             self._print_robot(message)
@@ -345,7 +347,9 @@ class HealthRobotGraph:
                 return True
             self._print_robot(message)
 
-    def _store_reading_data(self, device: str, data: dict, state: ConversationState) -> None:
+    def _store_reading_data(
+        self, device: str, data: dict, state: ConversationState
+    ) -> None:
         if device == "oximeter":
             state["readings"]["oximeter_hr"] = data["value"]["hr"]
             state["readings"]["oximeter_spo2"] = data["value"]["spo2"]
@@ -366,7 +370,9 @@ class HealthRobotGraph:
                     print(f"  [BG thread: waiting for {device} (real hardware)...]")
                     data = get_real_reading(device)
                 else:
-                    print(f"  [BG thread: waiting for {device} (dummy, timeout={READING_TIMEOUT}s)...]")
+                    print(
+                        f"  [BG thread: waiting for {device} (dummy, timeout={READING_TIMEOUT}s)...]"
+                    )
                     simulate_reading(device, delay=2.0)
                     try:
                         data = device_queue.get(timeout=READING_TIMEOUT)
@@ -388,7 +394,11 @@ class HealthRobotGraph:
         return done_event, result_box
 
     def _wait_for_proceed_or_reading(
-        self, action_context: str, robot_message: str, done_event: threading.Event, result_box: list
+        self,
+        action_context: str,
+        robot_message: str,
+        done_event: threading.Event,
+        result_box: list,
     ) -> str:
         while True:
             if reset_event.is_set():
@@ -405,7 +415,9 @@ class HealthRobotGraph:
             # Re-check: data may have arrived during the 0.2s wait
             if done_event.is_set() and result_box[0] is not None:
                 return "reading_done"
-            should_go, message = self.llm.evaluate_proceed(user_input, action_context, robot_message)
+            should_go, message = self.llm.evaluate_proceed(
+                user_input, action_context, robot_message
+            )
             if should_go:
                 return "proceed"
             self._print_robot(message)
@@ -425,7 +437,10 @@ class HealthRobotGraph:
         done_event, result_box = self._start_reading_thread(device)
 
         outcome = self._wait_for_proceed_or_reading(
-            PAGE_CONFIG[intro_stage]["action_context"], state["robot_response"], done_event, result_box
+            PAGE_CONFIG[intro_stage]["action_context"],
+            state["robot_response"],
+            done_event,
+            result_box,
         )
         asr.cancel_hold()
 
@@ -462,7 +477,9 @@ class HealthRobotGraph:
                 self._print_robot(state["robot_response"], state["page_id"])
                 user_input = self._ask_user()
                 if not self.llm.retry_or_give_up(user_input):
-                    self._print_robot("No problem. We will skip this measurement and move on.")
+                    self._print_robot(
+                        "No problem. We will skip this measurement and move on."
+                    )
                     return False
                 done_event, result_box = self._start_reading_thread(device)
 
@@ -498,7 +515,9 @@ class HealthRobotGraph:
             self._print_robot(state["robot_response"], state["page_id"])
             user_input = self._ask_user()
             if not self.llm.retry_or_give_up(user_input):
-                self._print_robot("No problem. We will skip this measurement and move on.")
+                self._print_robot(
+                    "No problem. We will skip this measurement and move on."
+                )
                 return False
             done_event, result_box = self._start_reading_thread(device)
             done_event.wait()
@@ -582,7 +601,9 @@ class HealthRobotGraph:
                 # ── welcome ───────────────────────────────────────────────
                 state = self.welcome_node(state)
                 self._print_robot(state["robot_response"], state["page_id"])
-                if not self._wait_for_consent(PAGE_CONFIG["welcome"]["action_context"], state["robot_response"]):
+                if not self._wait_for_consent(
+                    PAGE_CONFIG["welcome"]["action_context"], state["robot_response"]
+                ):
                     self._print_robot("No problem. Feel free to come back any time.")
                     continue
 
@@ -604,11 +625,14 @@ class HealthRobotGraph:
                             state["answers"][qkey] = value
                             print(f"  [Recorded {qkey}: {value}]")
                             cfg = PAGE_CONFIG[qkey]
-                            update_state(int(state["page_id"]), {
-                                "question": cfg["message"].split("\n")[0],
-                                "options": json.dumps(cfg["options"]),
-                                "selected": value,
-                            })
+                            update_state(
+                                int(state["page_id"]),
+                                {
+                                    "question": cfg["message"].split("\n")[0],
+                                    "options": json.dumps(cfg["options"]),
+                                    "selected": value,
+                                },
+                            )
                             time.sleep(0.8)
                             break
                         opts = "\n    ".join(PAGE_CONFIG[qkey]["options"])
