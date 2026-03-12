@@ -18,7 +18,13 @@ from device import device_queue, simulate_reading, get_real_reading
 from llm_helpers import LLMHelper
 import asr
 import tts
-from ws_server import action_queue, reset_event, update_state, flush_action_queue, navigation_complete_event
+from ws_server import (
+    action_queue,
+    reset_event,
+    update_state,
+    flush_action_queue,
+    navigation_complete_event,
+)
 
 
 class _ResetRequested(Exception):
@@ -35,6 +41,7 @@ class HealthRobotGraph:
         if use_printer:
             try:
                 from print_utility import PrintUtility
+
                 self.printer = PrintUtility()
                 print("  [Printer: ready]")
             except Exception as e:
@@ -73,7 +80,10 @@ class HealthRobotGraph:
         elif stage == "measure_intro":
             data = {"message": state["robot_response"]}
         elif stage == "oximeter_intro":
-            data = {"device": "oximeter", "video_id": PAGE_CONFIG["oximeter_intro"]["video_id"]}
+            data = {
+                "device": "oximeter",
+                "video_id": PAGE_CONFIG["oximeter_intro"]["video_id"],
+            }
         elif stage == "oximeter_reading":
             data = {"message": state["robot_response"]}
         elif stage == "oximeter_done":
@@ -82,19 +92,28 @@ class HealthRobotGraph:
                 "unit": "",
             }
         elif stage == "bp_intro":
-            data = {"device": "blood pressure monitor", "video_id": PAGE_CONFIG["bp_intro"]["video_id"]}
+            data = {
+                "device": "blood pressure monitor",
+                "video_id": PAGE_CONFIG["bp_intro"]["video_id"],
+            }
         elif stage == "bp_reading":
             data = {"message": state["robot_response"]}
         elif stage == "bp_done":
             data = {"value": r.get("bp", "?"), "unit": "mmHg"}
         elif stage == "scale_intro":
-            data = {"device": "scale", "video_id": PAGE_CONFIG["scale_intro"]["video_id"]}
+            data = {
+                "device": "scale",
+                "video_id": PAGE_CONFIG["scale_intro"]["video_id"],
+            }
         elif stage == "scale_reading":
             data = {"message": state["robot_response"]}
         elif stage == "scale_done":
             data = {"value": str(r.get("scale", "?")), "unit": "kg"}
         elif stage == "height_intro":
-            data = {"device": "height sensor", "video_id": PAGE_CONFIG["height_intro"]["video_id"]}
+            data = {
+                "device": "height sensor",
+                "video_id": PAGE_CONFIG["height_intro"]["video_id"],
+            }
         elif stage == "height_reading":
             data = {"message": state["robot_response"]}
         elif stage == "height_done":
@@ -163,7 +182,9 @@ class HealthRobotGraph:
         bp = r.get("bp", "?/?")
         try:
             systolic, diastolic = str(bp).split("/")
-            reading = f"Your blood pressure is {systolic.strip()} over {diastolic.strip()}. "
+            reading = (
+                f"Your blood pressure is {systolic.strip()} over {diastolic.strip()}. "
+            )
         except ValueError:
             reading = f"Your blood pressure is {bp}. "
         msg = reading + PAGE_CONFIG["bp_done"]["message"]
@@ -278,10 +299,24 @@ class HealthRobotGraph:
         """Block until the user confirms they are ready. Handles diversions via LLM."""
         while True:
             user_input = self._ask_user()
-            should_go, message = self.llm.evaluate_proceed(user_input, action_context, robot_message)
+            should_go, message = self.llm.evaluate_proceed(
+                user_input, action_context, robot_message
+            )
             if should_go:
                 return
             self._print_robot(message)
+
+    def _wait_for_consent(self, action_context: str, robot_message: str = "") -> bool:
+        """Like _wait_for_proceed but returns False if the user declines."""
+        while True:
+            user_input = self._ask_user()
+            should_go, message = self.llm.evaluate_proceed(
+                user_input, action_context, robot_message
+            )
+            if should_go:
+                return True
+            self._print_robot(message)
+            return False
 
     def _confirm_reading(self, action_context: str, robot_message: str = "") -> bool:
         """
@@ -292,7 +327,9 @@ class HealthRobotGraph:
             user_input = self._ask_user()
             if user_input.lower() == "retry":
                 return False
-            should_go, message = self.llm.evaluate_proceed(user_input, action_context, robot_message)
+            should_go, message = self.llm.evaluate_proceed(
+                user_input, action_context, robot_message
+            )
             if should_go:
                 return True
             self._print_robot(message)
@@ -312,7 +349,9 @@ class HealthRobotGraph:
                 print(f"  [No reading received from {device}]")
                 return False
         else:
-            print(f"  [Waiting for {device} data (dummy, timeout={READING_TIMEOUT}s)...]")
+            print(
+                f"  [Waiting for {device} data (dummy, timeout={READING_TIMEOUT}s)...]"
+            )
             simulate_reading(device, delay=2.0)
             try:
                 data = device_queue.get(timeout=READING_TIMEOUT)
@@ -348,7 +387,9 @@ class HealthRobotGraph:
         video_mute = PAGE_CONFIG[intro_stage].get("video_mute_duration", 0)
         if video_mute > 0:
             asr.hold_mute_for(video_mute)
-        self._wait_for_proceed(PAGE_CONFIG[intro_stage]["action_context"], state["robot_response"])
+        self._wait_for_proceed(
+            PAGE_CONFIG[intro_stage]["action_context"], state["robot_response"]
+        )
         asr.cancel_hold()  # user is done with the video page; clear any remaining hold
 
         while True:
@@ -359,7 +400,9 @@ class HealthRobotGraph:
             if self._do_device_reading(device, state):
                 state = done_node(state)
                 self._print_robot(state["robot_response"], state["page_id"])
-                if self._confirm_reading(PAGE_CONFIG[done_stage]["action_context"], state["robot_response"]):
+                if self._confirm_reading(
+                    PAGE_CONFIG[done_stage]["action_context"], state["robot_response"]
+                ):
                     return True
                 continue  # user pressed Retry — redo the reading
 
@@ -370,7 +413,8 @@ class HealthRobotGraph:
 
             if state["retry_count"] >= MAX_RETRIES:
                 self._print_robot(
-                    state["robot_response"] + " Maximum retries reached. We will skip this measurement and move on.",
+                    state["robot_response"]
+                    + " Maximum retries reached. We will skip this measurement and move on.",
                     state["page_id"],
                 )
                 return False
@@ -379,7 +423,9 @@ class HealthRobotGraph:
 
             user_input = self._ask_user()
             if not self.llm.retry_or_give_up(user_input):
-                self._print_robot("No problem. We will skip this measurement and move on.")
+                self._print_robot(
+                    "No problem. We will skip this measurement and move on."
+                )
                 return False
 
     def _print_receipt(self, state: ConversationState):
@@ -447,13 +493,19 @@ class HealthRobotGraph:
                 # Discard any speech items captured before the lock took effect.
                 flush_action_queue()
                 self._print_robot(state["robot_response"], state["page_id"])
-                self._wait_for_proceed(PAGE_CONFIG["idle"]["action_context"], state["robot_response"])
+                self._wait_for_proceed(
+                    PAGE_CONFIG["idle"]["action_context"], state["robot_response"]
+                )
                 asr.unlock()
 
                 # ── welcome ───────────────────────────────────────────────
                 state = self.welcome_node(state)
                 self._print_robot(state["robot_response"], state["page_id"])
-                self._wait_for_proceed(PAGE_CONFIG["welcome"]["action_context"], state["robot_response"])
+                if not self._wait_for_consent(
+                    PAGE_CONFIG["welcome"]["action_context"], state["robot_response"]
+                ):
+                    self._print_robot("No problem. Feel free to come back any time.")
+                    continue
 
                 # ── questionnaire ─────────────────────────────────────────
                 for qkey in ("q1", "q2", "q3"):
@@ -481,7 +533,10 @@ class HealthRobotGraph:
                 # ── measure intro ─────────────────────────────────────────
                 state = self.measure_intro_node(state)
                 self._print_robot(state["robot_response"], state["page_id"])
-                self._wait_for_proceed(PAGE_CONFIG["measure_intro"]["action_context"], state["robot_response"])
+                self._wait_for_proceed(
+                    PAGE_CONFIG["measure_intro"]["action_context"],
+                    state["robot_response"],
+                )
 
                 # ── device readings ───────────────────────────────────────
                 self._reading_loop("oximeter", "oximeter_intro", "oximeter_done", state)

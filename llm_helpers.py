@@ -25,25 +25,24 @@ class LLMHelper:
         Returns (should_proceed, follow_up_message_or_None).
         """
         robot_context = (
-            f"The robot just said:\n  \"{robot_message}\"\n\n"
-            if robot_message else ""
+            f'The robot just said:\n  "{robot_message}"\n\n' if robot_message else ""
         )
         messages = [
             SystemMessage(
                 content=(
-                    "You are a friendly digital health assistant.\n"
+                    "You are Temi, a friendly digital health assistant.\n"
                     f"{robot_context}"
                     f"The user was being asked to: {action_context}\n\n"
                     "Decide whether the user's response is POSITIVE or NEGATIVE in sentiment.\n"
-                    "A positive response means they are willing, ready, agreeing, or consenting.\n"
-                    "Examples of positive responses include the words 'start', 'continue', 'proceed', 'I agree', 'I accept', 'yes'.\n"
-                    "Use common sense reasoning about whether they are ready.\n"
-                    "A negative response means they are unwilling, confused, asking a question,\n"
+                    "Do not be overly strict, as the user will reply in natural language and talk casually / informally.\n"
+                    "Do NOT ask for further confirmation if you think there is even a small chance that the user is confirming.\n"
+                    "A POSITIVE response means they are willing, ready, agreeing, or consenting.\n"
+                    "A NEGATIVE response means they are unwilling, confused, asking a question,\n"
                     "or explicitly declining.\n\n"
                     "OUTPUT RULES:\n"
-                    "- If positive: reply with ONLY the single word: PROCEED\n"
-                    "- If negative: if the user is asking a question or making a comment which is relevant to the health screening,\n"
-                    "  briefly assist them, then gently remind them about the current step.\n"
+                    "- If POSITIVE: reply with ONLY the single word: PROCEED\n"
+                    "- If NEGATIVE: reply with a helpful 2-3 sentence response as Temi,\n"
+                    "  then gently remind them about the current step.\n"
                     "  Do NOT begin your response with the word PROCEED."
                 )
             ),
@@ -64,7 +63,9 @@ class LLMHelper:
         """
         options = PAGE_CONFIG[question_key]["options"]
         options_text = "\n".join(f"  {i+1}. {o}" for i, o in enumerate(options))
-        question_context = f"The question: \"{question_text}\"\n\n" if question_text else ""
+        question_context = (
+            f'The question: "{question_text}"\n\n' if question_text else ""
+        )
         messages = [
             SystemMessage(
                 content=(
@@ -75,9 +76,9 @@ class LLMHelper:
                     "1. SKIP — they want to skip (indicators: skip, pass, next, move on,\n"
                     "   I'd rather not, prefer not to say, no thanks, not sure, etc.)\n"
                     "2. ANSWER — their response maps to one of the options above\n"
-                    "   (by number, keyword, or meaning — e.g. \"I smoke on the weekend\"\n"
-                    "   → \"Occasionally\", \"I exercise every day\" → \"Daily\",\n"
-                    "   \"I drink like a fish\" → \"More than 21 units\")\n"
+                    '   (by number, keyword, or meaning — e.g. "I smoke on the weekend"\n'
+                    '   → "Occasionally", "I exercise every day" → "Daily",\n'
+                    '   "I drink like a fish" → "More than 21 units")\n'
                     "3. UNCLEAR — ambiguous, off-topic, or genuinely unmatchable\n\n"
                     "OUTPUT RULES:\n"
                     "- If SKIP: reply with only the word SKIP\n"
