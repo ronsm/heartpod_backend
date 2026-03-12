@@ -9,13 +9,14 @@ heartpod_backend/
 ├── main.py              ← Entry point: python main.py
 ├── config.py            ← All static strings and constants (edit messages here)
 ├── state.py             ← ConversationState TypedDict
-├── asr.py               ← ASR mute/unmute state (shared by tts.py and ws_server.py)
+├── stt.py               ← STT client: connects to stt_server.py, provides start()/stop()
+├── stt_server.py        ← Standalone speech-to-text server (run separately)
+├── stt_client.py        ← Demo client for stt_server.py (for testing)
 ├── ws_server.py         ← WebSocket server: pushes state to the app, receives actions
 ├── tts.py               ← Text-to-speech engine (none / local / temi mode)
 ├── robot.py             ← HealthRobotGraph – nodes, graph wiring, run loop
 ├── device.py            ← device_queue and simulate_reading() (swap for real hardware)
 ├── llm_helpers.py       ← LLMHelper class – all LLM prompts live here
-├── listen.py            ← Speech-to-text (Whisper + SpeechRecognition)
 ├── print_utility.py     ← PrintUtility – thermal receipt printer (Epson USB)
 ├── download_voice.py    ← Downloads the Piper TTS alba voice model into ./voices/
 └── sensors/
@@ -66,6 +67,20 @@ heartpod_backend/
 
 ## Running
 
+Speech-to-text runs as a separate server process. Start it first, then start the backend.
+
+**Terminal 1 — STT server:**
+```bash
+python stt_server.py [OPTIONS]
+```
+
+| Flag | Description |
+|------|-------------|
+| `-l`, `--list-microphones` | List available microphones and exit |
+| `-m M`, `--microphone M` | Microphone device index (default: system default) |
+| `-t N`, `--energy-threshold N` | Fixed energy threshold (default: auto-calibrate) |
+
+**Terminal 2 — Backend:**
 ```bash
 python main.py [OPTIONS]
 ```
@@ -76,9 +91,8 @@ python main.py [OPTIONS]
 |------|-------------|
 | `--dummy` | Use simulated sensor data instead of real BLE hardware |
 | `--no-printer` | Disable the thermal receipt printer |
-| `--no-listen` | Disable the speech-to-text listener |
+| `--no-listen` | Do not connect to the STT server |
 | `--tts {none,local,temi}` | Text-to-speech mode (default: `none`) |
-| `--microphone N` | Microphone device index (run `python listen.py --list-microphones` to list options; defaults to the system default input device) |
 | `--port PORT` | Port for the WebSocket server (default: `8000`) |
 
 **Examples:**
@@ -87,14 +101,14 @@ python main.py [OPTIONS]
 # Full production run (real sensors + printer, Temi TTS)
 python main.py --tts temi
 
-# Development / demo run (simulated sensors, local TTS, local microphone)
+# Development / demo run (simulated sensors, local TTS)
 python main.py --dummy --no-printer --tts local
-
-# Same but force a specific microphone (useful if the default input is wrong)
-python main.py --dummy --no-printer --tts local --microphone 1
 
 # Real sensors, no printer, custom port, silent
 python main.py --no-printer --port 8080
+
+# No speech input (terminal and touchscreen only)
+python main.py --no-listen --dummy --no-printer
 ```
 
 ## Text-to-Speech
@@ -120,6 +134,18 @@ python download_voice.py
 ```
 
 The model is saved to `./voices/` (gitignored). You only need to do this once.
+
+## Speech-to-Text
+
+Speech recognition runs as a standalone server (`stt_server.py`) that is separate from the backend. The backend connects to it as a client via `stt.py` and controls when recognition is active by sending `Start STT` / `Stop STT` commands over a TCP socket (port 61000, using Python's `multiprocessing.connection` protocol).
+
+The STT server uses [Faster Whisper](https://github.com/SYSTRAN/faster-whisper) (`small.en` model) for transcription and includes a hallucination filter. Ambient noise calibration runs once per client connection.
+
+When the backend does not need voice input (during TTS playback, video playback, or on the tap-only idle page), it tells the server to stop listening. This avoids picking up the robot's own voice or video narration without any timers or mute state — the microphone simply is not recording.
+
+### STT hold during video playback
+
+Device instruction pages play an instructional video with narration. To prevent that narration from being recognised as user speech, `robot.py` calls `stt.hold()` before the video page and `stt.release_hold()` when the user leaves it. While a hold is active, `stt.start()` calls are suppressed. The hold is released either by the `video_ended` WebSocket message from the frontend (video finished naturally) or by `robot.py` when the user presses Ready.
 
 ## Communication Protocol
 
@@ -152,27 +178,14 @@ The backend runs a WebSocket server (default port 8000). The Android app connect
 {"type": "tts_status", "status": "stop"}
 ```
 
-The `tts_status=stop` event triggers the ASR unmute (after `ASR_UNMUTE_DELAY`). A fallback timer in `tts.py` handles unmuting if the event is never received (e.g. on emulator). `tts_status=start` is logged but has no other effect since the ASR is already muted by the time it arrives.
+The `tts_status=stop` event tells the backend that the Temi has finished speaking, which triggers `stt.start()` so the microphone begins listening for user input. `tts_status=start` is logged but has no other effect since STT is already stopped by the time it arrives.
 
-## Speech-to-Text (`listen.py`)
-
-`listen.py` runs as two daemon threads inside the main process — one captures microphone audio, the other transcribes it with Whisper and pushes the result directly onto `action_queue`. It can also be run standalone for microphone testing:
-
-```bash
-# List available microphones
-python listen.py --list-microphones
-
-# Use a specific microphone with a fixed energy threshold
-python listen.py --microphone 2 --energy-threshold 300
+**App → backend** — video ended, sent when a device instruction video finishes playing:
+```json
+{"type": "video_ended"}
 ```
 
-## ASR Muting
-
-To prevent the microphone from picking up the robot's own voice, the ASR pipeline is muted for the duration of every TTS utterance plus a configurable buffer (default **1.0 s**) to let any audio already captured drain through Whisper before the pipeline reopens. The buffer is set by `ASR_UNMUTE_DELAY` in `config.py`.
-
-**Local TTS** (`--tts local`): muting is driven entirely by the backend. `tts.speak()` mutes immediately and broadcasts `tts_active=true` to lock the app's buttons; the playback thread unmutes and broadcasts `tts_active=false` when audio finishes. A sequence guard ensures that a thread interrupted by `stop()` cannot unmute while a newer utterance is already playing.
-
-**Temi TTS** (`--tts temi`): the backend mutes when it sends the TTS WebSocket message. The app locks its buttons on receipt of the `tts` message, then sends `tts_status=stop` when Temi finishes speaking, which triggers the backend unmute. A fallback timer also broadcasts `tts_active=false` (unlocking the app) after an estimated playback duration, acting as a safety net when running without real Temi hardware.
+This releases the STT hold so that the user can say "ready" immediately after the video finishes.
 
 ## Key Design Decisions
 

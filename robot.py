@@ -17,7 +17,7 @@ from config import PAGE_CONFIG, MAX_RETRIES, READING_TIMEOUT, RECAP_RETURN_DELAY
 from state import ConversationState
 from device import device_queue, simulate_reading, get_real_reading
 from llm_helpers import LLMHelper
-import asr
+import stt
 import tts
 from ws_server import (
     action_queue,
@@ -430,9 +430,9 @@ class HealthRobotGraph:
         # ── Intro phase: show screen and immediately start background read ────
         state = intro_node(state)
         self._print_robot(state["robot_response"], state["page_id"])
-        video_mute = PAGE_CONFIG[intro_stage].get("video_mute_duration", 0)
-        if video_mute > 0:
-            asr.hold_mute_for(video_mute)
+        stt.hold()
+        self._wait_for_proceed(PAGE_CONFIG[intro_stage]["action_context"], state["robot_response"])
+        stt.release_hold()
 
         done_event, result_box = self._start_reading_thread(device)
 
@@ -442,7 +442,6 @@ class HealthRobotGraph:
             done_event,
             result_box,
         )
-        asr.cancel_hold()
 
         if outcome == "reading_done" and result_box[0] is not None:
             # Early success — skip reading screen, go straight to done
@@ -567,6 +566,7 @@ class HealthRobotGraph:
         while True:  # outer loop: returns here after recap, giving up, or reset
             reset_event.clear()
             flush_action_queue()
+            stt.release_hold()  # clear any stale hold from a reset during a video page
             try:
                 state: ConversationState = {
                     "current_stage": "idle",
@@ -580,9 +580,9 @@ class HealthRobotGraph:
 
                 # ── idle ──────────────────────────────────────────────────
                 state = self.idle_node(state)
-                # Idle page is tap-only: lock ASR immediately so no ambient
-                # speech is captured while Temi navigates to the front door.
-                asr.lock()
+                # Idle page is tap-only: stop STT so no ambient speech
+                # is captured while Temi navigates to the front door.
+                stt.stop()
                 # In temi mode, wait for Temi to arrive at the front door
                 # before speaking so the greeting plays on arrival, not in transit.
                 if tts.mode() == "temi":
@@ -596,7 +596,7 @@ class HealthRobotGraph:
                 self._wait_for_proceed(
                     PAGE_CONFIG["idle"]["action_context"], state["robot_response"]
                 )
-                asr.unlock()
+                stt.start()
 
                 # ── welcome ───────────────────────────────────────────────
                 state = self.welcome_node(state)

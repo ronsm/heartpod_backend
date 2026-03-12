@@ -2,10 +2,8 @@ import argparse
 import os
 import threading
 import time
-from queue import Queue
 
 import tts
-from listen import listen, recognize
 from robot import HealthRobotGraph
 from ws_server import action_queue, start_ws_server, DEFAULT_PORT
 
@@ -46,7 +44,7 @@ def main():
     parser.add_argument(
         "--no-listen",
         action="store_true",
-        help="Disable the speech-to-text listener (useful when running without a microphone)",
+        help="Disable speech-to-text (do not connect to the STT server)",
     )
     parser.add_argument(
         "--tts",
@@ -56,13 +54,6 @@ def main():
             "Text-to-speech mode: 'none' (silent), 'local' (speak on this machine via piper-tts), "
             "'temi' (send to the Android app via WebSocket) (default: none)"
         ),
-    )
-    parser.add_argument(
-        "--microphone",
-        metavar="N",
-        type=int,
-        default=None,
-        help="Microphone device index (run 'python listen.py --list-microphones' to list options)",
     )
     args = parser.parse_args()
 
@@ -78,13 +69,9 @@ def main():
     print("Terminal input also accepted. Type 'quit' or 'exit' to stop.\n")
 
     if not args.no_listen:
-        import speech_recognition as sr
-        microphone = sr.Microphone(device_index=args.microphone)
-        recognizer = sr.Recognizer()
-        audio_queue = Queue()
-        threading.Thread(target=listen, args=(recognizer, audio_queue, microphone), daemon=True).start()
-        threading.Thread(target=recognize, args=(recognizer, audio_queue, action_queue), daemon=True).start()
-        print("Speech listener started\n")
+        import stt
+        stt.init(action_queue)
+        print("Speech-to-text client ready\n")
 
     input_thread = threading.Thread(target=_terminal_input_loop, daemon=True)
     input_thread.start()
