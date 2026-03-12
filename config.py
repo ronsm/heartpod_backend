@@ -17,18 +17,6 @@ READING_TIMEOUT = 30  # seconds
 LLM_MODEL = "gpt-4o-mini"
 LLM_TEMPERATURE = 0.5
 
-# How long to wait after TTS finishes before reopening the ASR pipeline.
-# Increase if the ASR still occasionally hears the tail end of the robot's voice.
-ASR_UNMUTE_DELAY = 1.0  # seconds
-
-# Duration (seconds) to keep the microphone muted while each instruction video plays.
-# Set each value to the length of the corresponding video so the ASR does not
-# pick up the video audio.  Voice input becomes available again once this timer expires
-# or the user presses "I'm Ready", whichever comes first.
-OXIMETER_VIDEO_DURATION = 40  # seconds
-BP_VIDEO_DURATION = 53        # seconds
-SCALE_VIDEO_DURATION = 26     # seconds
-
 # ---------------------------------------------------------------------------
 # PAGE_CONFIG – single source of all static strings
 #
@@ -145,7 +133,6 @@ PAGE_CONFIG = {
         "message": "",
         "action_context": "confirming the oximeter is clipped onto their finger",
         "video_id": "oximeter",
-        "video_mute_duration": OXIMETER_VIDEO_DURATION,
     },
     "oximeter_reading": {
         "page_id": "08",
@@ -166,7 +153,6 @@ PAGE_CONFIG = {
         "message": "",
         "action_context": "confirming the blood pressure cuff is on and they are ready",
         "video_id": "bpm",
-        "video_mute_duration": BP_VIDEO_DURATION,
     },
     "bp_reading": {
         "page_id": "11",
@@ -187,7 +173,6 @@ PAGE_CONFIG = {
         "message": "",
         "action_context": "confirming they are standing on the scale",
         "video_id": "scales",
-        "video_mute_duration": SCALE_VIDEO_DURATION,
     },
     "scale_reading": {
         "page_id": "14",

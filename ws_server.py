@@ -21,22 +21,9 @@ from typing import Optional, Set
 import websockets
 from websockets.server import WebSocketServerProtocol
 
-import asr
-from config import ASR_UNMUTE_DELAY
+import stt
 
 DEFAULT_PORT = 8000
-
-# Cancelable timer for the post-TTS ASR unmute.  Kept as a module-level variable
-# so that a new speak() call can cancel a stale unmute before it fires.
-_unmute_timer: Optional[threading.Timer] = None
-
-
-def cancel_pending_unmute() -> None:
-    """Cancel any scheduled ASR unmute (call when a new TTS utterance begins)."""
-    global _unmute_timer
-    if _unmute_timer is not None:
-        _unmute_timer.cancel()
-        _unmute_timer = None
 
 # Last-known state — sent immediately to any newly connected client.
 _ws_state: dict = {"page_id": 1, "data": {}}
@@ -92,20 +79,10 @@ async def _handler(websocket: WebSocketServerProtocol):
             if msg_type == "tts_status":
                 status = msg.get("status", "")
                 if status == "start":
-                    # Cancel any stale unmute — a new utterance is about to play.
-                    cancel_pending_unmute()
-                    print("\n  [app] tts_status=start — (ASR already muted by tts.py)")
+                    print("\n  [app] tts_status=start — (STT already stopped by tts.py)")
                 elif status == "stop":
-                    global _unmute_timer
-                    cancel_pending_unmute()
-                    def _do_unmute():
-                        global _unmute_timer
-                        _unmute_timer = None
-                        asr.unmute()
-                    _unmute_timer = threading.Timer(ASR_UNMUTE_DELAY, _do_unmute)
-                    _unmute_timer.daemon = True
-                    _unmute_timer.start()
-                    print("\n  [app] tts_status=stop — ASR unmuting")
+                    stt.start()
+                    print("\n  [app] tts_status=stop — STT started")
                 continue
 
             # go_to_complete: sent by the frontend when Temi finishes navigating.
@@ -115,10 +92,10 @@ async def _handler(websocket: WebSocketServerProtocol):
                 continue
 
             # video_ended: sent by the frontend when the instruction video finishes.
-            # Cancels the video hold-mute so the user can say "ready" immediately.
+            # Releases the STT hold so the user can say "ready" immediately.
             if msg_type == "video_ended":
-                asr.cancel_hold()
-                print("\n  [app] video_ended — ASR hold cancelled")
+                stt.release_hold()
+                print("\n  [app] video_ended — STT hold released")
                 continue
 
             if action == "reset":

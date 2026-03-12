@@ -19,10 +19,11 @@ Playback backends (local mode):
   macOS – afplay subprocess reading a temp WAV file
   Linux – aplay subprocess reading WAV from stdin
 
-ASR muting:
-  speak() mutes the ASR pipeline for the duration of playback plus
-  ASR_UNMUTE_DELAY (from config.py) so any audio captured at the end of
-  playback has time to drain through Whisper before the pipeline reopens.
+ASR control:
+  speak() stops the external STT server for the duration of playback.
+  In local mode, STT is restarted when playback finishes.
+  In temi mode, STT is restarted by ws_server.py when tts_status=stop
+  arrives from the Android app.
 """
 
 import io
@@ -34,9 +35,8 @@ import threading
 import time
 import wave
 
-import asr
-from config import ASR_UNMUTE_DELAY
-from ws_server import broadcast_tts, broadcast_tts_active, cancel_pending_unmute
+import stt
+from ws_server import broadcast_tts, broadcast_tts_active
 
 _mode: str = "none"
 _voice = None           # piper.voice.PiperVoice, loaded once at init
@@ -84,7 +84,7 @@ def speak(text: str) -> None:
     """Start speaking text, interrupting any speech already in progress."""
     global _current_seq
     if _mode == "local":
-        asr.mute()
+        stt.stop()
         stop()
         _stop_flag.clear()
         with _seq_lock:
@@ -93,12 +93,9 @@ def speak(text: str) -> None:
         broadcast_tts_active(True)
         threading.Thread(target=_speak_local, args=(text, seq), daemon=True).start()
     elif _mode == "temi":
-        cancel_pending_unmute()  # kill any stale unmute from the previous utterance
-        asr.mute()
+        stt.stop()
         broadcast_tts(text)
-        # ASR is unmuted exclusively by tts_status=stop arriving from the app
-        # via ws_server._unmute_timer.  No fallback timer — any time-based estimate
-        # risks firing while Temi is still talking.
+        # STT is restarted by ws_server.py when tts_status=stop arrives from the app.
 
 
 def stop() -> None:
@@ -145,16 +142,13 @@ def _speak_local(text: str, seq: int) -> None:
             _play_aplay(audio, seq)
 
     finally:
-        # Unlock the frontend and unmute ASR when playback ends.
-        # The seq guard ensures a thread killed by stop() doesn't unlock while
-        # a newer speak() is already in progress.
+        # Unlock the frontend and restart STT when playback ends.
+        # The seq guard ensures a thread killed by stop() doesn't interfere
+        # with a newer speak() already in progress.
         with _seq_lock:
             if seq == _current_seq:
                 broadcast_tts_active(False)
-        time.sleep(ASR_UNMUTE_DELAY)
-        with _seq_lock:
-            if seq == _current_seq:
-                asr.unmute()
+                stt.start()
 
 
 def _play_macos(audio, seq: int) -> None:
