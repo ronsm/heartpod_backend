@@ -296,6 +296,16 @@ class HealthRobotGraph:
                 raise _ResetRequested()
             return result
 
+    def _wait_for_consent(self, action_context: str, robot_message: str = "") -> bool:
+        """Like _wait_for_proceed but returns False if the user declines."""
+        while True:
+            user_input = self._ask_user()
+            should_go, message = self.llm.evaluate_proceed(user_input, action_context, robot_message)
+            if should_go:
+                return True
+            self._print_robot(message)
+            return False
+
     def _wait_for_proceed(self, action_context: str, robot_message: str = ""):
         """Block until the user confirms they are ready. Handles diversions via LLM."""
         while True:
@@ -572,9 +582,7 @@ class HealthRobotGraph:
                 # ── welcome ───────────────────────────────────────────────
                 state = self.welcome_node(state)
                 self._print_robot(state["robot_response"], state["page_id"])
-                if not self._wait_for_consent(
-                    PAGE_CONFIG["welcome"]["action_context"], state["robot_response"]
-                ):
+                if not self._wait_for_consent(PAGE_CONFIG["welcome"]["action_context"], state["robot_response"]):
                     self._print_robot("No problem. Feel free to come back any time.")
                     continue
 

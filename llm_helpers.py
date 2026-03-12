@@ -35,14 +35,14 @@ class LLMHelper:
                     f"The user was being asked to: {action_context}\n\n"
                     "Decide whether the user's response is POSITIVE or NEGATIVE in sentiment.\n"
                     "Do not be overly strict, as the user will reply in natural language and talk casually / informally.\n"
-                    "Do NOT ask for further confirmation if you think there is even a small chance that the user is confirming.\n"
+                    "Do NOT ask for further confirmation if the user reply is 'OK' or if you think there is even a small chance that the user is confirming.\n"
                     "A POSITIVE response means they are willing, ready, agreeing, or consenting.\n"
                     "A NEGATIVE response means they are unwilling, confused, asking a question,\n"
                     "or explicitly declining.\n\n"
                     "OUTPUT RULES:\n"
                     "- If POSITIVE: reply with ONLY the single word: PROCEED\n"
-                    "- If NEGATIVE: reply with a helpful 2-3 sentence response as Temi,\n"
-                    "  then gently remind them about the current step.\n"
+                    "- If NEGATIVE: if the user is asking a question or making a comment which is relevant to the health screening,\n"
+                    "  briefly assist them, then gently remind them about the current step.\n"
                     "  Do NOT begin your response with the word PROCEED."
                 )
             ),
