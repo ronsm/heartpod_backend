@@ -67,15 +67,25 @@ def stop() -> None:
 
 
 def hold() -> None:
-    """Suppress start() and stop listening (video playing)."""
+    """Suppress start() and stop listening (video playing).
+
+    No-op if a hold is already active.
+    """
     global _hold
+    if _hold:
+        return
     _hold = True
     stop()
 
 
 def release_hold() -> None:
-    """Re-enable start() and resume listening immediately."""
+    """Re-enable start() and resume listening immediately.
+
+    No-op if no hold is active.
+    """
     global _hold
+    if not _hold:
+        return
     _hold = False
     start()
 
