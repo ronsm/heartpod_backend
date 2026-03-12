@@ -7,6 +7,7 @@ The run() method drives the conversation; all routing logic lives here.
 
 import json
 import queue as queue_module
+import threading
 
 from langgraph.graph import StateGraph, END
 
@@ -334,32 +335,7 @@ class HealthRobotGraph:
                 return True
             self._print_robot(message)
 
-    def _do_device_reading(self, device: str, state: ConversationState) -> bool:
-        """
-        Obtain a reading from `device` and store it in state["readings"].
-        Returns True on success, False on failure/timeout.
-
-        In real mode: calls the BLE sensor directly via get_real_reading().
-        In dummy mode: fires a simulated reading onto device_queue.
-        """
-        if self.sensor_mode == "real":
-            print(f"  [Waiting for {device} data (real hardware)...]")
-            data = get_real_reading(device)
-            if data is None:
-                print(f"  [No reading received from {device}]")
-                return False
-        else:
-            print(
-                f"  [Waiting for {device} data (dummy, timeout={READING_TIMEOUT}s)...]"
-            )
-            simulate_reading(device, delay=2.0)
-            try:
-                data = device_queue.get(timeout=READING_TIMEOUT)
-            except queue_module.Empty:
-                print(f"  [Timeout: no data received from {device}]")
-                return False
-
-        print(f"  [Data received: {data}]")
+    def _store_reading_data(self, device: str, data: dict, state: ConversationState) -> None:
         if device == "oximeter":
             state["readings"]["oximeter_hr"] = data["value"]["hr"]
             state["readings"]["oximeter_spo2"] = data["value"]["spo2"]
@@ -369,48 +345,139 @@ class HealthRobotGraph:
             state["readings"]["scale"] = data["value"]
         elif device == "height":
             state["readings"]["height"] = data["value"]
-        return True
 
-    def _reading_loop(
-        self, device: str, intro_stage: str, done_stage: str, state: ConversationState
-    ) -> bool:
-        """
-        Run the full intro → reading → done cycle for one device.
-        Returns True if the reading succeeded, False if the user gave up or
-        retries were exhausted (session continues with the next sensor).
-        """
+    def _start_reading_thread(self, device: str):
+        done_event = threading.Event()
+        result_box = [None]
+
+        def _run():
+            try:
+                if self.sensor_mode == "real":
+                    print(f"  [BG thread: waiting for {device} (real hardware)...]")
+                    data = get_real_reading(device)
+                else:
+                    print(f"  [BG thread: waiting for {device} (dummy, timeout={READING_TIMEOUT}s)...]")
+                    simulate_reading(device, delay=2.0)
+                    try:
+                        data = device_queue.get(timeout=READING_TIMEOUT)
+                    except queue_module.Empty:
+                        print(f"  [BG thread: timeout — no data from {device}]")
+                        data = None
+                result_box[0] = data
+                if data:
+                    print(f"  [BG thread: data received: {data}]")
+                else:
+                    print(f"  [BG thread: no reading from {device}]")
+            except Exception as e:
+                print(f"  [BG thread: error for {device}: {e}]")
+                result_box[0] = None
+            finally:
+                done_event.set()
+
+        threading.Thread(target=_run, daemon=True, name=f"sensor-{device}").start()
+        return done_event, result_box
+
+    def _wait_for_proceed_or_reading(
+        self, action_context: str, robot_message: str, done_event: threading.Event, result_box: list
+    ) -> str:
+        while True:
+            if reset_event.is_set():
+                raise _ResetRequested()
+            if done_event.is_set() and result_box[0] is not None:
+                return "reading_done"
+            try:
+                user_input = action_queue.get(timeout=0.2)
+            except queue_module.Empty:
+                continue
+            tts.stop()
+            if reset_event.is_set():
+                raise _ResetRequested()
+            # Re-check: data may have arrived during the 0.2s wait
+            if done_event.is_set() and result_box[0] is not None:
+                return "reading_done"
+            should_go, message = self.llm.evaluate_proceed(user_input, action_context, robot_message)
+            if should_go:
+                return "proceed"
+            self._print_robot(message)
+
+    def _reading_loop(self, device, intro_stage, done_stage, state):
         intro_node = getattr(self, f"{intro_stage}_node")
+        reading_node = getattr(self, f"{device}_reading_node")
         done_node = getattr(self, f"{done_stage}_node")
 
+        # ── Intro phase: show screen and immediately start background read ────
         state = intro_node(state)
         self._print_robot(state["robot_response"], state["page_id"])
         video_mute = PAGE_CONFIG[intro_stage].get("video_mute_duration", 0)
         if video_mute > 0:
             asr.hold_mute_for(video_mute)
-        self._wait_for_proceed(
-            PAGE_CONFIG[intro_stage]["action_context"], state["robot_response"]
-        )
-        asr.cancel_hold()  # user is done with the video page; clear any remaining hold
 
+        done_event, result_box = self._start_reading_thread(device)
+
+        outcome = self._wait_for_proceed_or_reading(
+            PAGE_CONFIG[intro_stage]["action_context"], state["robot_response"], done_event, result_box
+        )
+        asr.cancel_hold()
+
+        if outcome == "reading_done" and result_box[0] is not None:
+            # Early success — skip reading screen, go straight to done
+            self._store_reading_data(device, result_box[0], state)
+        else:
+            # User pressed ready, OR background thread failed during intro.
+            # If thread failed already, start a fresh one.
+            if done_event.is_set() and result_box[0] is None:
+                done_event, result_box = self._start_reading_thread(device)
+
+            # ── Reading phase: show reading screen and wait for thread ────────
+            while True:
+                state = reading_node(state)
+                self._print_robot(state["robot_response"], state["page_id"])
+                done_event.wait()  # returns immediately if already set
+                data = result_box[0]
+                if data is not None:
+                    self._store_reading_data(device, data, state)
+                    break  # → done phase
+
+                # Sensor timeout
+                state["retry_count"] += 1
+                state["retry_stage"] = f"{device}_reading"
+                state = self.sorry_node(state)
+                if state["retry_count"] >= MAX_RETRIES:
+                    self._print_robot(
+                        state["robot_response"]
+                        + " Maximum retries reached. We will skip this measurement and move on.",
+                        state["page_id"],
+                    )
+                    return False
+                self._print_robot(state["robot_response"], state["page_id"])
+                user_input = self._ask_user()
+                if not self.llm.retry_or_give_up(user_input):
+                    self._print_robot("No problem. We will skip this measurement and move on.")
+                    return False
+                done_event, result_box = self._start_reading_thread(device)
+
+        # ── Done phase: confirm reading or retry ──────────────────────────────
         while True:
-            reading_node = getattr(self, f"{device}_reading_node")
+            state = done_node(state)
+            self._print_robot(state["robot_response"], state["page_id"])
+            if self._confirm_reading(
+                PAGE_CONFIG[done_stage]["action_context"], state["robot_response"]
+            ):
+                return True
+            # User wants to redo — go back to reading screen with a fresh thread
             state = reading_node(state)
             self._print_robot(state["robot_response"], state["page_id"])
+            done_event, result_box = self._start_reading_thread(device)
+            done_event.wait()
+            data = result_box[0]
+            if data is not None:
+                self._store_reading_data(device, data, state)
+                continue  # back to done screen
 
-            if self._do_device_reading(device, state):
-                state = done_node(state)
-                self._print_robot(state["robot_response"], state["page_id"])
-                if self._confirm_reading(
-                    PAGE_CONFIG[done_stage]["action_context"], state["robot_response"]
-                ):
-                    return True
-                continue  # user pressed Retry — redo the reading
-
-            # Device timeout → sorry
+            # Retry also failed
             state["retry_count"] += 1
             state["retry_stage"] = f"{device}_reading"
             state = self.sorry_node(state)
-
             if state["retry_count"] >= MAX_RETRIES:
                 self._print_robot(
                     state["robot_response"]
@@ -418,15 +485,19 @@ class HealthRobotGraph:
                     state["page_id"],
                 )
                 return False
-
             self._print_robot(state["robot_response"], state["page_id"])
-
             user_input = self._ask_user()
             if not self.llm.retry_or_give_up(user_input):
-                self._print_robot(
-                    "No problem. We will skip this measurement and move on."
-                )
+                self._print_robot("No problem. We will skip this measurement and move on.")
                 return False
+            done_event, result_box = self._start_reading_thread(device)
+            done_event.wait()
+            data = result_box[0]
+            if data is not None:
+                self._store_reading_data(device, data, state)
+                continue
+            self._print_robot("No problem. We will skip this measurement and move on.")
+            return False
 
     def _print_receipt(self, state: ConversationState):
         """Print header, results, and footer to the thermal printer if available."""

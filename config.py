@@ -26,9 +26,9 @@ ASR_UNMUTE_DELAY = 1.0  # seconds
 # pick up the video audio.  Voice input becomes available again once this timer expires
 # or the user presses "I'm Ready", whichever comes first.
 OXIMETER_VIDEO_DURATION = 40  # seconds
-BP_VIDEO_DURATION = 53        # seconds
-SCALE_VIDEO_DURATION = 26     # seconds
-HEIGHT_VIDEO_DURATION = 30    # seconds — update once a real instruction video exists
+BP_VIDEO_DURATION = 53  # seconds
+SCALE_VIDEO_DURATION = 26  # seconds
+HEIGHT_VIDEO_DURATION = 30  # seconds — update once a real instruction video exists
 
 # ---------------------------------------------------------------------------
 # PAGE_CONFIG – single source of all static strings
@@ -53,7 +53,8 @@ PAGE_CONFIG = {
             "confirming whether they want to begin the health check "
             "(yes to start, no to decline)"
         ),
-        "location": "front door",
+        # "location": "front door",
+        "location": "triage",
     },
     "welcome": {
         "page_id": "02",
@@ -179,7 +180,7 @@ PAGE_CONFIG = {
         "message": (
             "Great. Thank you! I've recorded your blood pressure. "
             "Next, we will measure your weight. "
-            "Say 'continue' or press the button when you're ready for the final measurement."
+            "Say 'continue' or press the button when you're ready."
         ),
         "action_context": "confirming they are ready to continue to the scale",
     },
