@@ -207,7 +207,7 @@ PAGE_CONFIG = {
     },
     "height_intro": {
         "page_id": "18",
-        "message": "Please watch the short video on screen for instructions on taking the height measurement. Press Ready or say Ready when you're in position.",
+        "message": "",
         "action_context": "confirming they are standing in position for the height reading",
         # TODO: replace with a real instruction video ID once available
         "video_id": "height",

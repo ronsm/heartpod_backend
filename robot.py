@@ -603,6 +603,13 @@ class HealthRobotGraph:
                         if intent == "answer":
                             state["answers"][qkey] = value
                             print(f"  [Recorded {qkey}: {value}]")
+                            cfg = PAGE_CONFIG[qkey]
+                            update_state(int(state["page_id"]), {
+                                "question": cfg["message"].split("\n")[0],
+                                "options": json.dumps(cfg["options"]),
+                                "selected": value,
+                            })
+                            time.sleep(0.8)
                             break
                         opts = "\n    ".join(PAGE_CONFIG[qkey]["options"])
                         self._print_robot(
