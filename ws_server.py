@@ -114,7 +114,7 @@ async def _handler(websocket: WebSocketServerProtocol):
                 print("\n  [app] go_to_complete — Temi arrived at location")
                 continue
 
-            # video_ended: sent by the frontend when the YouTube instruction video finishes.
+            # video_ended: sent by the frontend when the instruction video finishes.
             # Cancels the video hold-mute so the user can say "ready" immediately.
             if msg_type == "video_ended":
                 asr.cancel_hold()

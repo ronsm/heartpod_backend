@@ -53,12 +53,12 @@ def recognize(
     """
     _hallucinations = {
         "",
-        "Thank you for watching",
-        "Thanks for watching",
-        "Thank you for your attention",
-        "Please subscribe",
-        "Don't forget to like and subscribe",
-        "Hit the bell icon",
+        "Thank you for watching!",
+        "Thanks for watching!",
+        "Thank you for your attention.",
+        "Please subscribe.",
+        "Don't forget to like and subscribe!",
+        "Hit the bell icon!",
         "You",
         "Subtitles by the Amara.org community",
         "MBC 뉴스",
