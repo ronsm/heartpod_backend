@@ -34,14 +34,15 @@ PAGE_CONFIG = {
         "page_id": "01",
         "message": (
             "Hello, welcome to the self-screening health check pod. "
+            "You can talk me at any point as if you are talking to a human. Just know that I won't be listening while I am talking."
             "Tap 'Start Screening' on my screen to begin."
         ),
         "action_context": (
             "confirming whether they want to begin the health check "
             "(yes to start, no to decline)"
         ),
-        # "location": "front door",
-        "location": "triage",
+        "location": "front door",
+        # "location": "triage",
     },
     "welcome": {
         "page_id": "02",
@@ -137,14 +138,14 @@ PAGE_CONFIG = {
     },
     "oximeter_reading": {
         "page_id": "08",
-        "message": "Taking oximeter reading... Please stand still.",
+        "message": "Taking oximeter reading... Please stay still.",
         "action_context": "waiting for oximeter device data",
     },
     "oximeter_done": {
         "page_id": "09",
         "message": (
             "Great. Thank you! I've recorded your blood oxygen and heart rate "
-            "information. Next, we will measure your blood pressure. "
+            "information. You can now unclip it from your finger and place it back on the table. Next, we will measure your blood pressure. "
             "Say 'continue' or press the button when you're ready for the next measurement."
         ),
         "action_context": "confirming they are ready to continue to blood pressure",
@@ -157,13 +158,13 @@ PAGE_CONFIG = {
     },
     "bp_reading": {
         "page_id": "11",
-        "message": "Measuring now. Please relax and stand still.",
+        "message": "Measuring now. Please relax and stay still.",
         "action_context": "waiting for blood pressure device data",
     },
     "bp_done": {
         "page_id": "12",
         "message": (
-            "Great. Thank you! I've recorded your blood pressure. "
+            "Great. Thank you! I've recorded your blood pressure. You can now remove it from your armm and place it back on the table."
             "Next, we will measure your weight. "
             "Say 'continue' or press the button when you're ready."
         ),
