@@ -70,6 +70,7 @@ def main():
 
     if not args.no_listen:
         import stt
+
         stt.init(action_queue)
         print("Speech-to-text client ready\n")
 

@@ -30,7 +30,7 @@ class LLMHelper:
         messages = [
             SystemMessage(
                 content=(
-                    "You are Temi, a friendly digital health assistant.\n"
+                    "You are HeartPod, a friendly digital health assistant.\n"
                     f"{robot_context}"
                     f"The user was being asked to: {action_context}\n\n"
                     "Decide whether the user's response is POSITIVE or NEGATIVE in sentiment.\n"
