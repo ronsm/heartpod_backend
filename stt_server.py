@@ -95,7 +95,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "-t",
-        "--energy-threshold",
+        "--threshold",
         metavar="N",
         type=int,
         help=(
@@ -103,6 +103,12 @@ def parse_args() -> argparse.Namespace:
             "performed before listening and the threshold is further adjusted "
             "automatically while listening)"
         ),
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="print everything Whisper thinks you said, including hallucinations",
     )
     args = parser.parse_args()
 
@@ -114,7 +120,7 @@ def parse_args() -> argparse.Namespace:
         raise IndexError("Device index out of range")
 
     # Ensure that the specified energy threshold is valid
-    if args.energy_threshold is not None and args.energy_threshold < 0:
+    if args.threshold is not None and args.threshold < 0:
         raise ValueError("Energy threshold cannot be negative")
 
     return args
@@ -148,7 +154,7 @@ class STT:
     halt: Event
     running: bool
 
-    def __init__(self, microphone_id: int | None, energy_threshold: int | None) -> None:
+    def __init__(self, microphone_id: int | None, energy_threshold: int | None, verbose: bool) -> None:
         """Prep microphone and threads."""
         self.microphone = sr.Microphone(microphone_id)
         self.recognizer = sr.Recognizer()
@@ -176,6 +182,9 @@ class STT:
 
         # Keep track of whether the threads are running
         self.running = False
+
+        # Verbosity
+        self.verbose = verbose
 
     def start(self, connection: Connection) -> None:
         """Start worker threads.
@@ -323,15 +332,17 @@ class STT:
             else:
                 # Remove leading whitespace inserted by Whisper
                 utterance = utterance.lstrip()
-                print(f"Recognized: {utterance}")
 
                 # Reject hallucinations
                 if suppress_hallucinations(utterance) == "":
+                    if self.verbose:
+                        print(f"Rejected: {utterance}")
                     continue
 
                 # Put the recognized speech on the sending queue, unless
                 # a stop event was received during speech recognition,
                 # in which case the recognized speech shouldn't be sent
+                print(f"Recognized: {utterance}")
                 if not self.halt.is_set():
                     self.queue["text"].put(utterance)
 
@@ -397,7 +408,7 @@ def main():
         print(f"Listening for connections on {listener.address}")
 
         while True:
-            stt = STT(args.microphone, args.energy_threshold)
+            stt = STT(args.microphone, args.threshold, args.verbose)
 
             try:
                 print(f"Waiting for an incoming connection on {listener.address}")
