@@ -63,15 +63,18 @@ PAGE_CONFIG = {
     "q1": {
         "page_id": "03",
         "message": (
-            "Q1. Do you currently smoke?\n" "  1. Yes\n" "  2. No\n" "  3. Ex-smoker"
+            "Q1. Do you currently smoke?\n"
+            "  1. Yes\n"
+            "  2. No\n"
+            "  3. Used to smoke"
         ),
         "options": [
             "Yes, I smoke",
             "No, I do not smoke",
-            "I am en ex-smoker",
+            "I used to smoke",
         ],
         "speech": "Do you currently smoke? You can say your answer, tap it on screen, or say skip to move on.",
-        "action_context": "answering a question about whether they smoke, but note that one option is that they are an ex-smoker (used to smoke)",
+        "action_context": "answering a question about whether they smoke, or used to smoke",
     },
     "q2": {
         "page_id": "04",
