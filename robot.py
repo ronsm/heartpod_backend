@@ -393,6 +393,8 @@ class HealthRobotGraph:
                 raise _ResetRequested()
             if done_event.is_set() and result_box[0] is not None:
                 return "reading_done"
+            if done_event.is_set() and result_box[0] is None:
+                return "reading_failed"
             try:
                 user_input = action_queue.get(timeout=0.2)
             except queue_module.Empty:
@@ -418,16 +420,22 @@ class HealthRobotGraph:
         # ── Intro phase: show screen and immediately start background read ────
         state = intro_node(state)
         self._print_robot(state["robot_response"], state["page_id"])
-        stt.hold()
+        stt.hold()  # suppress mic while intro video plays
         done_event, result_box = self._start_reading_thread(device)
-        stt.release_hold()
 
-        outcome = self._wait_for_proceed_or_reading(
-            PAGE_CONFIG[intro_stage]["action_context"],
-            state["robot_response"],
-            done_event,
-            result_box,
-        )
+        while True:
+            outcome = self._wait_for_proceed_or_reading(
+                PAGE_CONFIG[intro_stage]["action_context"],
+                state["robot_response"],
+                done_event,
+                result_box,
+            )
+            if outcome != "reading_failed":
+                break
+            # Scan timed out but user hasn't proceeded yet — try again silently
+            done_event, result_box = self._start_reading_thread(device)
+
+        stt.release_hold()  # video done — re-enable mic for subsequent screens
 
         if outcome == "reading_done" and result_box[0] is not None:
             # Early success — skip reading screen, go straight to done

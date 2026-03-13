@@ -40,7 +40,8 @@ PAGE_CONFIG = {
             "confirming whether they want to begin the health check "
             "(yes to start, no to decline)"
         ),
-        "location": "front door",
+        # "location": "front door",
+        "location": "triage",
     },
     "welcome": {
         "page_id": "02",
