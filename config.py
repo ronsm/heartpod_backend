@@ -63,62 +63,47 @@ PAGE_CONFIG = {
     "q1": {
         "page_id": "03",
         "message": (
-            "Q1. How frequently do you smoke?\n"
-            "  1. I previously smoked but no longer do\n"
-            "  2. I do not and have never smoked\n"
-            "  3. Occasionally (e.g. weekly or monthly)\n"
-            "  4. A few times a day\n"
-            "  5. Many times per day"
+            "Q1. Do you currently smoke?\n" "  1. Yes\n" "  2. No\n" "  3. Ex-smoker"
         ),
         "options": [
-            "I previously smoked but no longer do.",
-            "I do not and have never smoked.",
-            "Occasionally (e.g. weekly or monthly).",
-            "A few times a day.",
-            "Many times per day.",
+            "Yes, I smoke",
+            "No, I do not smoke",
+            "I am en ex-smoker",
         ],
-        "speech": "How frequently do you smoke? You can say your answer, tap it on screen, or say skip to move on.",
-        "action_context": "answering a question about their smoking frequency",
+        "speech": "Do you currently smoke? You can say your answer, tap it on screen, or say skip to move on.",
+        "action_context": "answering a question about whether they smoke, but note that one option is that they are an ex-smoker (used to smoke)",
     },
     "q2": {
         "page_id": "04",
         "message": (
-            "Q2. How often do you exercise?\n"
-            "  1. Never\n"
-            "  2. Rarely (a few times a month)\n"
-            "  3. Sometimes (1 or 2 times a week)\n"
-            "  4. Often (3 or 4 times a week)\n"
-            "  5. Daily"
+            "Q2. What  physical activity do you commonnly engage with? This includes sports, housework, and gardening\n"
+            "1. Light exercise, like walking, yoga, or light housework\n"
+            "2. Moderate exercise, like aerobics, dancing, or hiking\n"
+            "3. Vigorous exercise like rugby, gym, or climbing"
         ),
         "options": [
-            "Never.",
-            "Rarely (a few times a month).",
-            "Sometimes (1 or 2 times a week).",
-            "Often (3 or 4 times a week).",
-            "Daily.",
+            "Light exercise, like walking, yoga, or light housework.",
+            "Moderate exercise, like aerobics, dancing, or hiking.",
+            "Vigorous exercise, like rugby, gym, or climbing.",
         ],
-        "speech": "How often do you exercise? You can say your answer, tap it on screen, or say skip to move on.",
-        "action_context": "answering a question about their exercise frequency",
+        "speech": "What  physical activity do you commonnly engage with? This includes sports, housework, and gardening. You can say your answer, tap it on screen, or say skip to move on.",
+        "action_context": "answering a question about their level of physical activity",
     },
     "q3": {
         "page_id": "05",
         "message": (
-            "Q3. How many units of alcohol do you drink per week?\n"
-            "  1. None\n"
-            "  2. 1 to 7 units\n"
-            "  3. 8 to 14 units\n"
-            "  4. 15 to 21 units\n"
-            "  5. More than 21 units"
+            "Q3. How often do you do this activity in an average week?\n"
+            "  1. Less than 1 hour per week\n"
+            "  2. 1 - 3 hours per week\n"
+            "  3. Over 3 hours per week"
         ),
         "options": [
-            "None.",
-            "1 to 7 units.",
-            "8 to 14 units.",
-            "15 to 21 units.",
-            "More than 21 units.",
+            "Less than 1 hour per week.",
+            "1 - 3 hours per week.",
+            "Over 3 hours per week.",
         ],
-        "speech": "How many units of alcohol do you drink per week? You can say your answer, tap it on screen, or say skip to move on.",
-        "action_context": "answering a question about their weekly alcohol consumption",
+        "speech": "How often do you do this activity in an average week? You can say your answer, tap it on screen, or say skip to move on.",
+        "action_context": "answering a question about the frequency of their physical activity",
     },
     "measure_intro": {
         "page_id": "06",

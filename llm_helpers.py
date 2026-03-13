@@ -76,9 +76,10 @@ class LLMHelper:
                     "1. SKIP — they want to skip (indicators: skip, pass, next, move on,\n"
                     "   I'd rather not, prefer not to say, no thanks, not sure, etc.)\n"
                     "2. ANSWER — their response maps to one of the options above\n"
-                    '   (by number, keyword, or meaning — e.g. "I smoke on the weekend"\n'
-                    '   → "Occasionally", "I exercise every day" → "Daily",\n'
-                    '   "I drink like a fish" → "More than 21 units")\n'
+                    "   (by number, keyword, or meaning — e.g. 'I do pilates twice a week.'\n"
+                    "   'I do housework' → 'Light'. Try to understand that the examples we give\n"
+                    "    are just that, examples. Consider other relevant examples.\n"
+                    "    Example: 'I run' → 'Moderate'\n"
                     "3. UNCLEAR — ambiguous, off-topic, or genuinely unmatchable\n\n"
                     "OUTPUT RULES:\n"
                     "- If SKIP: reply with only the word SKIP\n"
